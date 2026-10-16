@@ -1,0 +1,134 @@
+{
+  "note": "Synthetic test data. Generated from server/src/sms/codec.ts; lib/core/sms/codec.dart must match.",
+  "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "valid": [
+    {
+      "name": "spec example, one SMS",
+      "deviceId": "D0042",
+      "nonce": "a0a1a2a3a4a5a6a7a8a9aaab",
+      "plaintext": "A;7f3c9a21;P0412;M;2610062114;HB,CV;T389;G32",
+      "fields": {
+        "shortCode": "7f3c9a21",
+        "patient": "P0412",
+        "type": "M",
+        "time": "2610062114",
+        "signs": [
+          "HB",
+          "CV"
+        ],
+        "vitals": [
+          "T389",
+          "G32"
+        ]
+      },
+      "sms": [
+        "HB1 D0042 oKGio6SlpqeoqaqrpyNLS3aoO95QVLyDN07x7EvhYiKkhnJcqjwXt0uQPUP+NRHE+xFrBGTbN/qa/e/XMOwV/sNEkQzopC1Z"
+      ]
+    },
+    {
+      "name": "no danger signs, no vitals",
+      "deviceId": "D0042",
+      "nonce": "b0b1b2b3b4b5b6b7b8b9babb",
+      "plaintext": "A;0badc0de;P0001;L;2610160930;",
+      "fields": {
+        "shortCode": "0badc0de",
+        "patient": "P0001",
+        "type": "L",
+        "time": "2610160930",
+        "signs": [],
+        "vitals": []
+      },
+      "sms": [
+        "HB1 D0042 sLGys7S1tre4ubq72G5qyY2p2G8jnazy/W24879wcuAjH78EaP67wmy5cZwz4XlShZuaKwd/4D57kQ=="
+      ]
+    },
+    {
+      "name": "long payload, two SMS",
+      "deviceId": "D0042",
+      "nonce": "b0b1b2b3b4b5b6b7b8b9babb",
+      "plaintext": "A;deadbeef;P1234;C;2610161745;UD,VE,CC,LT,HF,MR,OE;T401;M115;R62;W8.4;H72.5;X1;Y22;Z333",
+      "fields": {
+        "shortCode": "deadbeef",
+        "patient": "P1234",
+        "type": "C",
+        "time": "2610161745",
+        "signs": [
+          "UD",
+          "VE",
+          "CC",
+          "LT",
+          "HF",
+          "MR",
+          "OE"
+        ],
+        "vitals": [
+          "T401",
+          "M115",
+          "R62",
+          "W8.4",
+          "H72.5",
+          "X1",
+          "Y22",
+          "Z333"
+        ]
+      },
+      "sms": [
+        "HB1 D0042 1/2 sLGys7S1tre4ubq72G4+zo2p2Toinqzy/G+79r9/cuAjH78EaP+1xWm5p1IpHWYWIJ2K9PF36AwQ9N",
+        "HB1 D0042 2/2 CZYigsky8Lc8sAu10FP8kWzYm/Bpo+hy7tK/KXZcY32Wh0ovLom0tG1/6YD901lQzTbNCzk26bYA=="
+      ]
+    }
+  ],
+  "rejected": [
+    {
+      "name": "tampered ciphertext",
+      "sms": [
+        "HB1 D0042 oKGio6SlpqeoqaqrpyNLS3aoO95QVLyDN07x7EvhYiKkhnJcAjwXt0uQPUP+NRHE+xFrBGTbN/qa/e/XMOwV/sNEkQzopC1Z"
+      ]
+    },
+    {
+      "name": "header device swapped (AAD mismatch)",
+      "sms": [
+        "HB1 D0043 oKGio6SlpqeoqaqrpyNLS3aoO95QVLyDN07x7EvhYiKkhnJcqjwXt0uQPUP+NRHE+xFrBGTbN/qa/e/XMOwV/sNEkQzopC1Z"
+      ]
+    },
+    {
+      "name": "truncated body",
+      "sms": [
+        "HB1 D0042 oKGio6SlpqeoqaqrpyNLS3aoO95QVLyDN07x7EvhYiKkhnJcqjwXt0uQPUP+NRHE+xFrBGTbN/qa/e/XMOwV/sNEkQzo"
+      ]
+    },
+    {
+      "name": "only part 1 of 2",
+      "sms": [
+        "HB1 D0042 1/2 sLGys7S1tre4ubq72G4+zo2p2Toinqzy/G+79r9/cuAjH78EaP+1xWm5p1IpHWYWIJ2K9PF36AwQ9N"
+      ]
+    },
+    {
+      "name": "same part twice",
+      "sms": [
+        "HB1 D0042 1/2 sLGys7S1tre4ubq72G4+zo2p2Toinqzy/G+79r9/cuAjH78EaP+1xWm5p1IpHWYWIJ2K9PF36AwQ9N",
+        "HB1 D0042 1/2 sLGys7S1tre4ubq72G4+zo2p2Toinqzy/G+79r9/cuAjH78EaP+1xWm5p1IpHWYWIJ2K9PF36AwQ9N"
+      ]
+    },
+    {
+      "name": "parts from two devices",
+      "sms": [
+        "HB1 D0042 1/2 sLGys7S1tre4ubq72G4+zo2p2Toinqzy/G+79r9/cuAjH78EaP+1xWm5p1IpHWYWIJ2K9PF36AwQ9N",
+        "HB1 D0043 2/2 CZYigsky8Lc8sAu10FP8kWzYm/Bpo+hy7tK/KXZcY32Wh0ovLom0tG1/6YD901lQzTbNCzk26bYA=="
+      ]
+    },
+    {
+      "name": "not a HealthBridge SMS",
+      "sms": [
+        "Hello, are you coming?"
+      ]
+    }
+  ],
+  "badPlaintext": [
+    "B;7f3c9a21;P0412;M;2610062114;HB;T389",
+    "A;7F3C9A21;P0412;M;2610062114;HB",
+    "A;7f3c9a21;P0412;X;2610062114;HB",
+    "A;7f3c9a21;P0412;M;26100621;HB",
+    "A;7f3c9a21;P0412;M;2610062114"
+  ]
+}
