@@ -1,0 +1,212 @@
+// 1:1 port of documents/HealthBridge Rwanda — Backend Schema.md §1.
+// Names stay snake_case so the code matches the spec. CHECK constraints live in the migration SQL.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum user_role {
+  chw
+  supervisor
+  admin
+}
+
+enum chw_role {
+  asm
+  binome
+}
+
+enum visit_type {
+  maternal
+  child
+  malaria
+  nutrition
+}
+
+enum alert_status {
+  new
+  reviewed
+  escalated
+  follow_up
+  resolved
+}
+
+model health_centers {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  district    String
+  sector      String
+  call_number String? // supervisor phone for the "call" fallback
+
+  users  users[]
+  alerts alerts[]
+}
+
+model users {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role             user_role
+  chw_role         chw_role?
+  full_name        String
+  phone            String    @unique
+  email            String?   @unique
+  secret_hash      String // argon2id of PIN or password
+  health_center_id String?   @db.Uuid
+  village          String?
+  language         String    @default("rw")
+  active           Boolean   @default(true)
+  // Added beyond the spec: lockout so a short PIN cannot be brute-forced.
+  failed_logins    Int       @default(0) @db.SmallInt
+  locked_until     DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  health_center health_centers? @relation(fields: [health_center_id], references: [id])
+  devices       devices[]
+  patients      patients[]
+  visits        visits[]
+  alert_events  alert_events[]
+  audit_log     audit_log[]
+}
+
+model devices {
+  id           String    @id // short ID, e.g. 'D0042', sent in clear in SMS
+  user_id      String    @db.Uuid
+  sms_key      Bytes // 32-byte AES key, encrypted at rest
+  sim_phone    String?
+  build_flavor String    @default("store") // CHECK store|managed
+  last_sync_at DateTime? @db.Timestamptz(6)
+  revoked_at   DateTime? @db.Timestamptz(6)
+
+  user         users          @relation(fields: [user_id], references: [id])
+  visits       visits[]
+  sms_messages sms_messages[]
+}
+
+model patients {
+  id           String    @id @db.Uuid // generated on the phone
+  short_id     String    @unique // e.g. 'P0412', safe for SMS
+  chw_id       String    @db.Uuid
+  full_name    String
+  sex          String?   @db.Char(1) // CHECK F|M
+  birth_date   DateTime? @db.Date
+  age_estimate Int?      @db.SmallInt
+  village      String
+  phone        String?
+  consent_at   DateTime  @db.Timestamptz(6)
+  created_at   DateTime  @db.Timestamptz(6)
+  updated_at   DateTime  @db.Timestamptz(6)
+
+  chw    users    @relation(fields: [chw_id], references: [id])
+  visits visits[]
+
+  @@index([chw_id, village])
+}
+
+model visits {
+  id           String     @id @db.Uuid // generated on the phone
+  short_code   String // first 8 hex of id, used in SMS
+  patient_id   String     @db.Uuid
+  chw_id       String     @db.Uuid
+  device_id    String
+  type         visit_type
+  answers      Json       @default("{}")
+  notes        String?
+  is_urgent    Boolean    @default(false)
+  follow_up_on DateTime?  @db.Date
+  recorded_at  DateTime   @db.Timestamptz(6) // phone clock
+  received_at  DateTime   @default(now()) @db.Timestamptz(6)
+  source       String // CHECK sync|sms
+  is_partial   Boolean    @default(false) // true until the full record syncs
+
+  patient            patients             @relation(fields: [patient_id], references: [id])
+  chw                users                @relation(fields: [chw_id], references: [id])
+  device             devices              @relation(fields: [device_id], references: [id])
+  visit_danger_signs visit_danger_signs[]
+  alert              alerts?
+  sms_messages       sms_messages[]
+
+  @@unique([device_id, short_code])
+  @@index([chw_id, recorded_at(sort: Desc)])
+}
+
+model danger_signs {
+  code       String     @id @db.Char(2) // e.g. 'HB' heavy bleeding
+  visit_type visit_type
+  label_en   String
+  label_rw   String
+
+  visit_danger_signs visit_danger_signs[]
+}
+
+model visit_danger_signs {
+  visit_id String @db.Uuid
+  code     String @db.Char(2)
+
+  visit       visits       @relation(fields: [visit_id], references: [id], onDelete: Cascade)
+  danger_sign danger_signs @relation(fields: [code], references: [code])
+
+  @@id([visit_id, code])
+}
+
+model alerts {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  visit_id         String       @unique @db.Uuid
+  health_center_id String       @db.Uuid
+  channel          String // CHECK internet|sms
+  status           alert_status @default(new)
+  acked_to_chw_at  DateTime?    @db.Timestamptz(6)
+  created_at       DateTime     @default(now()) @db.Timestamptz(6)
+
+  visit         visits         @relation(fields: [visit_id], references: [id])
+  health_center health_centers @relation(fields: [health_center_id], references: [id])
+  events        alert_events[]
+
+  @@index([health_center_id, status, created_at(sort: Desc)])
+}
+
+model alert_events {
+  id          BigInt        @id @default(autoincrement())
+  alert_id    String        @db.Uuid
+  actor_id    String?       @db.Uuid
+  from_status alert_status?
+  to_status   alert_status
+  note        String?
+  created_at  DateTime      @default(now()) @db.Timestamptz(6)
+
+  alert alerts @relation(fields: [alert_id], references: [id])
+  actor users? @relation(fields: [actor_id], references: [id])
+}
+
+model sms_messages {
+  id         BigInt   @id @default(autoincrement())
+  direction  String // CHECK in|out
+  phone      String
+  device_id  String?
+  nonce      Bytes? // unique per device, blocks replays
+  raw_text   String
+  status     String // parsed, rejected, sent, delivered, failed
+  error      String?
+  gateway_id String?
+  visit_id   String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  device devices? @relation(fields: [device_id], references: [id])
+  visit  visits?  @relation(fields: [visit_id], references: [id])
+
+  @@unique([device_id, nonce])
+}
+
+model audit_log {
+  id         BigInt   @id @default(autoincrement())
+  actor_id   String?  @db.Uuid
+  action     String
+  entity     String
+  entity_id  String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  actor users? @relation(fields: [actor_id], references: [id])
+}
