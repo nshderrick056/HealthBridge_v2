@@ -74,7 +74,7 @@ beforeEach(async () => {
       locked_until: null,
     },
   ];
-  app = createApp({ db: fakeDb(users) });
+  app = createApp({ db: fakeDb(users), sender: { send: async () => ({ gatewayId: null }) } });
 });
 
 const login = (body: object) => request(app).post('/auth/login').send(body);
