@@ -1,5 +1,10 @@
 import { defineConfig } from 'vitest/config';
 
+// The sync tests need a real Postgres: CI sets DATABASE_URL, local runs take it from .env.
+try {
+  process.loadEnvFile();
+} catch {}
+
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],

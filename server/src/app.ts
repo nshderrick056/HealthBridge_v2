@@ -6,6 +6,7 @@ import { env } from './env';
 import { errorHandler } from './http';
 import type { SmsSender } from './sms/gateway';
 import { smsRouter } from './sms/webhook';
+import { syncRouter } from './sync/routes';
 
 export function createApp({ db, sender }: { db: Db; sender: SmsSender }) {
   const app = express();
@@ -33,6 +34,7 @@ export function createApp({ db, sender }: { db: Db; sender: SmsSender }) {
   app.use('/auth', authRouter(db));
   app.use('/devices', devicesRouter(db));
   app.use('/webhooks/sms', smsRouter(db, sender));
+  app.use('/sync', syncRouter(db));
 
   app.use(errorHandler);
   return app;

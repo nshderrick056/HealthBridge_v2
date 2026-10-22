@@ -11,6 +11,7 @@ import 'package:health_bridge/data/models.dart';
 import 'package:health_bridge/data/providers.dart';
 import 'package:health_bridge/features/auth/login_screen.dart';
 import 'package:health_bridge/features/shell/app_shell.dart';
+import 'package:health_bridge/sync/sync_service.dart';
 
 const _session = Session(
   accessToken: 'a',
@@ -23,6 +24,9 @@ Widget _app(AppDatabase db, Widget home) => ProviderScope(
   overrides: [
     databaseProvider.overrideWithValue(db),
     sessionProvider.overrideWith((ref) => _session),
+    syncNowProvider.overrideWithValue(
+      () async {},
+    ), // no network in widget tests
   ],
   child: MaterialApp(theme: buildTheme(), home: home),
 );

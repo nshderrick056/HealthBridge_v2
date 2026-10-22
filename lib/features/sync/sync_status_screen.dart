@@ -6,6 +6,7 @@ import '../../core/widgets/widgets.dart';
 import '../../data/db.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
+import '../../sync/sync_service.dart';
 import '../shell/app_shell.dart';
 import '../view_models.dart';
 
@@ -192,7 +193,10 @@ class SyncStatusScreen extends ConsumerWidget {
               if (failed) ...[
                 const SizedBox(height: 5),
                 GestureDetector(
-                  onTap: () => ref.read(visitsRepositoryProvider).retry(v.id),
+                  onTap: () async {
+                    await ref.read(visitsRepositoryProvider).retry(v.id);
+                    await ref.read(syncNowProvider)();
+                  },
                   child: Text(
                     'Retry',
                     style: HbText.labelSmall.copyWith(color: HbColors.teal),

@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'data/providers.dart';
 import 'features/auth/login_screen.dart';
 import 'features/shell/app_shell.dart';
+import 'sync/sync_service.dart';
 
 class HealthBridgeApp extends ConsumerStatefulWidget {
   const HealthBridgeApp({super.key});
@@ -34,7 +35,9 @@ class _HealthBridgeAppState extends ConsumerState<HealthBridgeApp> {
           if (snap.connectionState != ConnectionState.done) {
             return const Scaffold(body: SizedBox.shrink());
           }
-          return signedIn ? const AppShell() : const LoginScreen();
+          return signedIn
+              ? const SyncTriggers(child: AppShell())
+              : const LoginScreen();
         },
       ),
     );

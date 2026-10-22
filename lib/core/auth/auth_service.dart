@@ -102,6 +102,30 @@ class AuthService {
     return session;
   }
 
+  /// A new 15-minute access token from the 30-day refresh token. Network errors propagate (the caller
+  /// retries later); a refused refresh throws [AuthException] and the CHW has to log in again.
+  Future<Session> refresh(Session s) async {
+    final res = await _client
+        .post(
+          Uri.parse('$baseUrl/auth/refresh'),
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({'refreshToken': s.refreshToken}),
+        )
+        .timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) {
+      throw AuthException('Your session has expired. Log in again.');
+    }
+    final next = Session(
+      accessToken: (jsonDecode(res.body) as Map)['accessToken'] as String,
+      refreshToken: s.refreshToken,
+      userId: s.userId,
+      fullName: s.fullName,
+      healthCenterId: s.healthCenterId,
+    );
+    await _storage.write(key: _key, value: jsonEncode(next.toJson()));
+    return next;
+  }
+
   /// The saved session, so the CHW stays signed in while offline.
   Future<Session?> restore() async {
     final raw = await _storage.read(key: _key);

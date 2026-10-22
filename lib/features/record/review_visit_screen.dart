@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/providers.dart';
+import '../../sync/sync_service.dart';
 import '../shell/app_shell.dart';
 import '../view_models.dart';
 import 'urgent_detected_screen.dart';
@@ -40,6 +43,9 @@ class _ReviewVisitScreenState extends ConsumerState<ReviewVisitScreen> {
           notes: f.notes.trim().isEmpty ? null : f.notes.trim(),
         );
     await ref.read(draftsRepositoryProvider).delete(widget.draftKey);
+    unawaited(
+      ref.read(syncNowProvider)(),
+    ); // upload now if online; the outbox keeps it otherwise
     if (!mounted) return;
     final next = visit.isUrgent
         ? UrgentDetectedScreen(visitId: visit.id)

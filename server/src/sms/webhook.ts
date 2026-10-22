@@ -10,6 +10,8 @@ import type { SmsSender } from './gateway';
 import { unwrapKey } from './keystore';
 
 const PART_WINDOW_MS = 60 * 60_000; // how long part 1 waits for part 2
+// Name on a patient created from an SMS, which only carries the short ID. /sync/push replaces it.
+export const STUB_PATIENT_NAME = '(awaiting sync)';
 const VISIT_TYPES = { M: 'maternal', C: 'child', L: 'malaria', N: 'nutrition' } as const;
 
 const inbound = z.object({ from: z.string().min(1), text: z.string().min(1).max(1000) });
@@ -133,7 +135,7 @@ export function smsRouter(db: Db, sender: SmsSender) {
             id: randomUUID(),
             short_id: fields.patient,
             chw_id: device.user_id,
-            full_name: '(awaiting sync)',
+            full_name: STUB_PATIENT_NAME,
             village: '',
             consent_at: recordedAt,
             created_at: recordedAt,

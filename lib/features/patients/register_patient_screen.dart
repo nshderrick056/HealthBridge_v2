@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/providers.dart';
+import '../../sync/sync_service.dart';
 import 'patients_screen.dart';
 
 /// Not in the Figma file (it only has the "Register patient" button); built from the same components.
@@ -49,6 +52,7 @@ class _RegisterPatientScreenState extends ConsumerState<RegisterPatientScreen> {
           ageEstimate: int.tryParse(_age.text.trim()),
           phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
         );
+    unawaited(ref.read(syncNowProvider)());
     if (mounted) Navigator.of(context).pop();
   }
 
