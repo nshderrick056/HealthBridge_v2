@@ -8,7 +8,7 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 
 | Path | What |
 | --- | --- |
-| `lib/` | Flutter app (Android only). `core/sms/` is the SMS codec, `data/` the offline database and repositories. The CHW screens (`features/`) come from the Figma design and are not here yet. |
+| `lib/` | Flutter app (Android only). `core/sms/` is the SMS codec, `data/` the offline database and repositories. The CHW screens are in `features/` (from the Figma file `healthbridge-v2`), with theme tokens in `core/theme/` and shared widgets in `core/widgets/`. |
 | `android/` | Flavours `store` (no SMS permission, opens the SMS composer) and `managed` (sends SMS directly). |
 | `server/` | Express + TypeScript + Prisma API, tested with Vitest and Supertest. |
 | `shared/sms-vectors.json` | Test vectors that both the TypeScript and Dart SMS codecs must pass. |
@@ -24,6 +24,7 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 | 2 | SMS codec (TS and Dart) | done |
 | 3 | SMS round trip: `POST /devices/register`, `POST /webhooks/sms`, `/webhooks/sms/delivery`, ack SMS | done (tested against fakes; not yet run against the Africa's Talking sandbox) |
 | 4 | Flutter data layer: encrypted drift DB, repositories, outbox, providers | done (see [lib/data/README.md](lib/data/README.md)) |
+| UI | CHW screens from Figma: login, home, patients, patient profile, record/review visit, urgent, saved, sync status (plus register-patient, alerts and profile tabs, which Figma lacks) | done; the two supervisor frames go to the web dashboard (slice 7) |
 | 5 | Sync engine (`/sync/push`, `/sync/pull`, background sync) | next |
 | 6 | Urgent pathway (`POST /alerts`, `UrgentSender`) | |
 | 7 | Supervisor dashboard | |

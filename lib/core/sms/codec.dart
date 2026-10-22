@@ -22,7 +22,9 @@ final _shortCode = RegExp(r'^[0-9a-f]{8}$');
 final _time = RegExp(r'^\d{10}$');
 final _sign = RegExp(r'^[A-Z]{2}$');
 final _vital = RegExp(r'^[A-Z][0-9.]{1,6}$');
-final _smsRe = RegExp(r'^HB1 ([A-Z0-9]{2,10}) (?:([12])/2 )?([A-Za-z0-9+/=]+)$');
+final _smsRe = RegExp(
+  r'^HB1 ([A-Z0-9]{2,10}) (?:([12])/2 )?([A-Za-z0-9+/=]+)$',
+);
 const _visitLetters = {'M', 'C', 'L', 'N'};
 
 final _aes = AesGcm.with256bits();
@@ -77,7 +79,15 @@ void _checkFields(AlertFields f) {
 
 String encodePlaintext(AlertFields f) {
   _checkFields(f);
-  return ['A', f.shortCode, f.patient, f.type, f.time, f.signs.join(','), ...f.vitals].join(';');
+  return [
+    'A',
+    f.shortCode,
+    f.patient,
+    f.type,
+    f.time,
+    f.signs.join(','),
+    ...f.vitals,
+  ].join(';');
 }
 
 AlertFields decodePlaintext(String text) {
@@ -120,7 +130,10 @@ Future<List<String>> seal({
   final half = (body.length / 2).ceil();
   final parts = [body.substring(0, half), body.substring(half)];
   final out = [for (var i = 0; i < 2; i++) '$header ${i + 1}/2 ${parts[i]}'];
-  _check(out.every((p) => p.length <= smsMax), 'length (payload too long for two SMS)');
+  _check(
+    out.every((p) => p.length <= smsMax),
+    'length (payload too long for two SMS)',
+  );
   return out;
 }
 
@@ -177,7 +190,10 @@ Future<OpenedSms> openSms(List<int> key, List<String> texts) async {
   } on FormatException {
     throw const CodecException('invalid body');
   }
-  _check(base64.encode(raw) == body && raw.length > _nonceLen + _tagLen, 'body');
+  _check(
+    base64.encode(raw) == body && raw.length > _nonceLen + _tagLen,
+    'body',
+  );
   final nonce = raw.sublist(0, _nonceLen);
   try {
     final clear = await _aes.decrypt(
