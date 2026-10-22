@@ -1,14 +1,8 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:uuid/uuid.dart';
 
 import 'forms/danger_signs.dart';
 import 'models.dart';
+import 'db_connection.dart';
 
 part 'db.g.dart';
 
@@ -26,7 +20,8 @@ class Patients extends Table {
   DateTimeColumn get consentAt => dateTime()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
-  TextColumn get syncState => textEnum<SyncState>().withDefault(Constant(SyncState.local.name))();
+  TextColumn get syncState =>
+      textEnum<SyncState>().withDefault(Constant(SyncState.local.name))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -42,7 +37,8 @@ class Visits extends Table {
   BoolColumn get isUrgent => boolean().withDefault(const Constant(false))();
   DateTimeColumn get followUpOn => dateTime().nullable()();
   DateTimeColumn get recordedAt => dateTime()();
-  TextColumn get syncState => textEnum<SyncState>().withDefault(Constant(SyncState.local.name))();
+  TextColumn get syncState =>
+      textEnum<SyncState>().withDefault(Constant(SyncState.local.name))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -108,16 +104,18 @@ class DangerSigns extends Table {
   Set<Column> get primaryKey => {code};
 }
 
-@DriftDatabase(tables: [
-  Patients,
-  Visits,
-  VisitDangerSigns,
-  Outbox,
-  UrgentDispatch,
-  Drafts,
-  SyncMeta,
-  DangerSigns,
-])
+@DriftDatabase(
+  tables: [
+    Patients,
+    Visits,
+    VisitDangerSigns,
+    Outbox,
+    UrgentDispatch,
+    Drafts,
+    SyncMeta,
+    DangerSigns,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
@@ -126,38 +124,25 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-          await batch((b) => b.insertAll(dangerSigns, [
-                for (final s in seedDangerSigns)
-                  DangerSignsCompanion.insert(
-                      code: s.code, visitType: s.type, labelEn: s.labelEn, labelRw: s.labelRw),
-              ]));
-        },
-        beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),
+    onCreate: (m) async {
+      await m.createAll();
+      await batch(
+        (b) => b.insertAll(dangerSigns, [
+          for (final s in seedDangerSigns)
+            DangerSignsCompanion.insert(
+              code: s.code,
+              visitType: s.type,
+              labelEn: s.labelEn,
+              labelRw: s.labelRw,
+            ),
+        ]),
       );
+    },
+    beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),
+  );
 }
 
-const _keyName = 'db_key';
-
-/// The SQLCipher key is random, made on first launch and kept in the Android Keystore.
-Future<String> _databaseKey() async {
-  const storage = FlutterSecureStorage();
-  var key = await storage.read(key: _keyName);
-  if (key == null) {
-    final bytes = [...const Uuid().v4obj().toBytes(), ...const Uuid().v4obj().toBytes()];
-    key = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    await storage.write(key: _keyName, value: key);
-  }
-  return key;
-}
-
-/// Opens the encrypted on-device database (SQLCipher build of sqlite3, see the pubspec hooks).
+/// Opens the platform database.
 Future<AppDatabase> openAppDatabase() async {
-  final key = await _databaseKey();
-  final dir = await getApplicationSupportDirectory();
-  return AppDatabase(NativeDatabase.createInBackground(
-    File(p.join(dir.path, 'healthbridge.db')),
-    setup: (raw) => raw.execute("PRAGMA key = \"x'$key'\";"),
-  ));
+  return AppDatabase(await openDatabaseExecutor());
 }

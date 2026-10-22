@@ -13,5 +13,7 @@ export const env = z
     AT_USERNAME: z.string().optional(),
     AT_API_KEY: z.string().optional(),
     AT_SENDER: z.string().optional(),
+    // Comma-separated browser origins allowed to call the API. Unset: any http://localhost or 127.0.0.1 port.
+    CORS_ORIGINS: z.string().optional(),
   })
   .parse(process.env);

@@ -46,6 +46,7 @@ npm run dev
 flutter pub get
 flutter test
 flutter run --flavor store   # or --flavor managed
+flutter run -d chrome --web-port 8080   # browser preview: keep the port fixed, browser data is stored per port
 ```
 
 After changing a drift table, regenerate `lib/data/db.g.dart` (it is committed):
