@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/providers.dart';
+import '../../sync/background_sync.dart';
 import '../shell/app_shell.dart';
 import '../sync/sync_status_screen.dart';
 
@@ -54,6 +55,7 @@ class ProfileScreen extends ConsumerWidget {
         HbButton.secondary(
           'Log out',
           onPressed: () async {
+            await cancelBackgroundSync();
             await ref.read(authServiceProvider).logout();
             ref.read(tabIndexProvider.notifier).state = 0;
             ref.read(sessionProvider.notifier).state = null;
