@@ -63,7 +63,9 @@ describe.skipIf(!url)('sync against Postgres', () => {
   beforeAll(async () => {
     db = createPrisma(url);
     app = createApp({ db, sender: { send: async () => ({ gatewayId: null }) } });
-    await db.health_centers.create({ data: { id: hc, name: 'Sync test centre', district: 'Test', sector: 'Test' } });
+    await db.health_centers.create({
+      data: { id: hc, name: 'Sync test centre', district: 'Test', sector: 'Test', call_number: '+250780009999' },
+    });
     for (const [id, phone, device] of [
       [chw, `+2507${tag}91`, deviceId],
       [other, `+2507${tag}92`, otherDevice],
@@ -213,7 +215,7 @@ describe.skipIf(!url)('sync against Postgres', () => {
     await request(app).post('/sync/push').send({ deviceId, changes: [] }).expect(401);
   });
 
-  it('pull returns patients, new alerts and danger signs, and `since` skips alerts already seen', async () => {
+  it('pull returns patients, new alerts, danger signs and the call number, and `since` skips seen alerts', async () => {
     const p = patient();
     const v = visit(p.id, { is_urgent: true });
     await push([change(1, 'patient', p), change(2, 'visit', v)]).expect(200);
@@ -226,6 +228,7 @@ describe.skipIf(!url)('sync against Postgres', () => {
     expect(first.body.patients.every((x: { full_name: string }) => x.full_name !== STUB_PATIENT_NAME)).toBe(true);
     expect(first.body.alerts).toContainEqual({ visit_id: v.id, status: 'new', acked_to_chw_at: null });
     expect(first.body.dangerSigns).toContainEqual(expect.objectContaining({ code: 'HB', visit_type: 'maternal' }));
+    expect(first.body.callNumber).toBe('+250780009999');
 
     const again = await request(app)
       .get(`/sync/pull?since=${encodeURIComponent(first.body.serverTime)}`)

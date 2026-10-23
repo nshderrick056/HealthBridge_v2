@@ -79,19 +79,22 @@ class PatientsRepository {
           entity: 'patient',
           entityId: p.id,
           op: OutboxOp.upsert,
-          payloadJson: jsonEncode({
-            'id': p.id,
-            'short_id': p.shortId,
-            'full_name': p.fullName,
-            'sex': p.sex,
-            'birth_date': p.birthDate?.toIso8601String(),
-            'age_estimate': p.ageEstimate,
-            'village': p.village,
-            'phone': p.phone,
-            'consent_at': p.consentAt.toUtc().toIso8601String(),
-            'created_at': p.createdAt.toUtc().toIso8601String(),
-            'updated_at': p.updatedAt.toUtc().toIso8601String(),
-          }),
+          payloadJson: jsonEncode(patientPayload(p)),
         ),
       );
 }
+
+/// The patient as /sync/push and POST /alerts take it.
+Map<String, Object?> patientPayload(Patient p) => {
+  'id': p.id,
+  'short_id': p.shortId,
+  'full_name': p.fullName,
+  'sex': p.sex,
+  'birth_date': p.birthDate?.toIso8601String(),
+  'age_estimate': p.ageEstimate,
+  'village': p.village,
+  'phone': p.phone,
+  'consent_at': p.consentAt.toUtc().toIso8601String(),
+  'created_at': p.createdAt.toUtc().toIso8601String(),
+  'updated_at': p.updatedAt.toUtc().toIso8601String(),
+};

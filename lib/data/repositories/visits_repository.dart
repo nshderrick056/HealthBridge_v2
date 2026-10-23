@@ -58,18 +58,7 @@ class VisitsRepository {
               entity: 'visit',
               entityId: id,
               op: OutboxOp.upsert,
-              payloadJson: jsonEncode({
-                'id': visit.id,
-                'short_code': visit.shortCode,
-                'patient_id': visit.patientId,
-                'type': visit.type.name,
-                'answers': answers,
-                'notes': visit.notes,
-                'is_urgent': visit.isUrgent,
-                'follow_up_on': visit.followUpOn?.toIso8601String(),
-                'recorded_at': visit.recordedAt.toUtc().toIso8601String(),
-                'danger_signs': codes,
-              }),
+              payloadJson: jsonEncode(visitPayload(visit, codes)),
             ),
           );
       return visit;
@@ -108,3 +97,17 @@ class VisitsRepository {
     return rows.map((r) => r.code).toList()..sort();
   }
 }
+
+/// The visit as /sync/push and POST /alerts take it.
+Map<String, Object?> visitPayload(Visit v, List<String> signCodes) => {
+  'id': v.id,
+  'short_code': v.shortCode,
+  'patient_id': v.patientId,
+  'type': v.type.name,
+  'answers': jsonDecode(v.answersJson),
+  'notes': v.notes,
+  'is_urgent': v.isUrgent,
+  'follow_up_on': v.followUpOn?.toIso8601String(),
+  'recorded_at': v.recordedAt.toUtc().toIso8601String(),
+  'danger_signs': signCodes,
+};

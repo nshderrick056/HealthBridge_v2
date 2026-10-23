@@ -10,6 +10,7 @@ import 'package:health_bridge/data/db.dart';
 import 'package:health_bridge/data/models.dart';
 import 'package:health_bridge/data/providers.dart';
 import 'package:health_bridge/features/auth/login_screen.dart';
+import 'package:health_bridge/features/record/sms_alert_sent_screen.dart';
 import 'package:health_bridge/features/shell/app_shell.dart';
 import 'package:health_bridge/sync/sync_service.dart';
 
@@ -248,4 +249,96 @@ void main() {
       await finish(tester);
     },
   );
+
+  Future<void> seedUrgent(String channel, DispatchState state) async {
+    final now = DateTime.now();
+    await db
+        .into(db.patients)
+        .insert(
+          PatientsCompanion.insert(
+            id: 'p1',
+            shortId: 'P000001',
+            fullName: 'Uwase Marie',
+            village: 'Nyamata',
+            consentAt: now,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    await db
+        .into(db.visits)
+        .insert(
+          VisitsCompanion.insert(
+            id: 'v1',
+            shortCode: '7f3c9a21',
+            patientId: 'p1',
+            type: VisitType.maternal,
+            recordedAt: now,
+            isUrgent: const Value(true),
+          ),
+        );
+    await db
+        .into(db.urgentDispatch)
+        .insert(
+          UrgentDispatchCompanion.insert(
+            visitId: 'v1',
+            channel: channel,
+            state: state,
+            sentAt: Value(now),
+          ),
+        );
+  }
+
+  testWidgets(
+    'an unconfirmed SMS alert offers Resend and Call, and the store build can confirm it by hand',
+    (tester) async {
+      await seedUrgent('sms_composer', DispatchState.unconfirmed);
+      phoneScreen(tester);
+      await tester.pumpWidget(_app(db, const SmsAlertSentScreen(visitId: 'v1')));
+      await settle(tester);
+
+      expect(find.text('SMS alert sent'), findsOneWidget);
+      expect(find.text('No confirmation yet'), findsOneWidget);
+      expect(find.text('Resend SMS'), findsOneWidget);
+      expect(find.text('Call health centre'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('I got the confirmation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('I got the confirmation'));
+      await settle(tester);
+
+      expect(find.text('Alert received by the health centre'), findsOneWidget);
+      expect(find.text('Resend SMS'), findsNothing);
+      expect(find.text('I got the confirmation'), findsNothing);
+      final d = (await tester.runAsync(
+        () => db.select(db.urgentDispatch).getSingle(),
+      ))!;
+      expect(d.state, DispatchState.confirmed);
+      await finish(tester);
+    },
+  );
+
+  testWidgets('an alert confirmed over the internet shows no SMS actions', (
+    tester,
+  ) async {
+    await seedUrgent('internet', DispatchState.confirmed);
+    phoneScreen(tester);
+    await tester.pumpWidget(_app(db, const SmsAlertSentScreen(visitId: 'v1')));
+    await settle(tester);
+
+    expect(find.text('Urgent alert sent'), findsOneWidget);
+    expect(
+      find.text('The alert reached the health centre over the internet.'),
+      findsOneWidget,
+    );
+    for (final gone in [
+      'Resend SMS',
+      'Call health centre',
+      'I got the confirmation',
+      'Full patient record',
+    ]) {
+      expect(find.text(gone), findsNothing, reason: gone);
+    }
+    await finish(tester);
+  });
 }

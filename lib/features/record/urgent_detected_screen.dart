@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/providers.dart';
+import '../../urgent/urgent_service.dart';
 import '../patients/patient_profile_screen.dart';
 import '../shell/app_shell.dart';
 import '../view_models.dart';
@@ -98,20 +101,14 @@ class UrgentDetectedScreen extends ConsumerWidget {
               HbButton.primary(
                 'Send urgent alert',
                 icon: Icons.add_circle_outline,
-                onPressed: () async {
-                  await ref
-                      .read(urgentRepositoryProvider)
-                      .start(
-                        visitId,
-                        channel: online ? 'internet' : 'sms_composer',
-                      );
-                  if (context.mounted) {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute<void>(
-                        builder: (_) => SmsAlertSentScreen(visitId: visitId),
-                      ),
-                    );
-                  }
+                // Internet first, SMS fallback (lib/urgent/); the next screen follows its progress.
+                onPressed: () {
+                  unawaited(ref.read(urgentDispatcherProvider).send(visitId));
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute<void>(
+                      builder: (_) => SmsAlertSentScreen(visitId: visitId),
+                    ),
+                  );
                 },
               ),
               const SizedBox(height: 8),

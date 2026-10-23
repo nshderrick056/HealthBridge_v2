@@ -86,13 +86,13 @@ class SyncEngine {
 
     var pushed = 0, rejected = 0;
     try {
-      final deviceId = await _deviceId();
+      final deviceId = await this.deviceId();
       while (true) {
         final due = await _due();
         if (due.isEmpty) break;
         final http.Response res;
         try {
-          res = await _send(
+          res = await send(
             'POST',
             '/sync/push',
             body: {
@@ -203,7 +203,7 @@ class SyncEngine {
     final since = await (db.select(
       db.syncMeta,
     )..where((t) => t.key.equals('last_pull'))).getSingleOrNull();
-    final res = await _send(
+    final res = await send(
       'GET',
       '/sync/pull',
       query: {'deviceId': deviceId, 'since': ?since?.value},
@@ -274,6 +274,14 @@ class SyncEngine {
           ]),
         );
       }
+      // The health centre's number for the urgent screen's call fallback, kept for offline use.
+      if (j['callNumber'] case final String call) {
+        await db
+            .into(db.syncMeta)
+            .insertOnConflictUpdate(
+              SyncMetaCompanion.insert(key: 'call_number', value: call),
+            );
+      }
       await db
           .into(db.syncMeta)
           .insertOnConflictUpdate(
@@ -285,15 +293,25 @@ class SyncEngine {
     });
   }
 
-  /// The server-issued device ID (and SMS key for slice 6), registered once per signed-in CHW.
-  Future<String> _deviceId() async {
-    final s = session()!;
+  /// The device ID and SMS key saved at registration for the signed-in CHW, without going online.
+  /// Null until the first registration; the urgent SMS cannot be sealed before that.
+  Future<({String deviceId, List<int> smsKey})?> savedDevice() async {
+    final s = session();
     final saved = await _storage.read(key: _deviceKey);
-    if (saved != null) {
-      final j = jsonDecode(saved) as Map<String, dynamic>;
-      if (j['userId'] == s.userId) return j['deviceId'] as String;
-    }
-    final res = await _send(
+    if (s == null || saved == null) return null;
+    final j = jsonDecode(saved) as Map<String, dynamic>;
+    if (j['userId'] != s.userId) return null;
+    return (
+      deviceId: j['deviceId'] as String,
+      smsKey: base64.decode(j['smsKey'] as String),
+    );
+  }
+
+  /// The server-issued device ID (and SMS key), registered once per signed-in CHW.
+  Future<String> deviceId() async {
+    final s = session()!;
+    if (await savedDevice() case final saved?) return saved.deviceId;
+    final res = await send(
       'POST',
       '/devices/register',
       body: {'buildFlavor': appFlavor == 'managed' ? 'managed' : 'store'},
@@ -316,11 +334,12 @@ class SyncEngine {
   }
 
   /// Authenticated request; an expired access token is refreshed once and the request repeated.
-  Future<http.Response> _send(
+  Future<http.Response> send(
     String method,
     String path, {
     Object? body,
     Map<String, String>? query,
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     Future<http.Response> go(Session s) {
       final uri = Uri.parse('${auth.baseUrl}$path')
@@ -332,7 +351,7 @@ class SyncEngine {
       final req = method == 'GET'
           ? _client.get(uri, headers: headers)
           : _client.post(uri, headers: headers, body: jsonEncode(body));
-      return req.timeout(const Duration(seconds: 20));
+      return req.timeout(timeout);
     }
 
     var s = session()!;

@@ -1,4 +1,5 @@
 import express from 'express';
+import { chwAlertsRouter } from './alerts/routes';
 import { authRouter } from './auth/routes';
 import type { Db } from './db';
 import { devicesRouter } from './devices/routes';
@@ -35,6 +36,7 @@ export function createApp({ db, sender }: { db: Db; sender: SmsSender }) {
   app.use('/devices', devicesRouter(db));
   app.use('/webhooks/sms', smsRouter(db, sender));
   app.use('/sync', syncRouter(db));
+  app.use('/alerts', chwAlertsRouter(db));
 
   app.use(errorHandler);
   return app;

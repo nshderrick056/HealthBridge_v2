@@ -26,7 +26,7 @@ const patientPayload = z.object({
   created_at: date,
   updated_at: date,
 });
-const visitPayload = z
+export const visitPayload = z
   .object({
     id: z.uuid(),
     short_code: z.string().regex(/^[0-9a-f]{8}$/),
@@ -57,11 +57,21 @@ const pushBody = z.object({
 const pullQuery = z.object({ since: date.optional(), deviceId: z.string().max(20).optional() });
 
 /** A change the server will never accept as sent; the phone marks it failed instead of retrying blindly. */
-class Rejected extends Error {}
+export class Rejected extends Error {}
 
-type Ctx = { chw: string; deviceId: string; healthCenterId: string | null };
+export type Ctx = { chw: string; deviceId: string; healthCenterId: string | null };
 
-async function upsertPatient(tx: Tx, ctx: Ctx, raw: unknown) {
+/** The CHW's own, unrevoked device. Shared with POST /alerts. */
+export async function deviceContext(db: Db, sub: string, deviceId: string): Promise<Ctx> {
+  const device = await db.devices.findFirst({
+    where: { id: deviceId, user_id: sub, revoked_at: null },
+    include: { user: true },
+  });
+  if (!device || !device.user.active) throw new HttpError(403, 'unknown_device');
+  return { chw: sub, deviceId, healthCenterId: device.user.health_center_id };
+}
+
+export async function upsertPatient(tx: Tx, ctx: Ctx, raw: unknown) {
   const p = patientPayload.parse(raw);
   const fields = {
     short_id: p.short_id,
@@ -103,7 +113,7 @@ async function upsertPatient(tx: Tx, ctx: Ctx, raw: unknown) {
   await audit('patient.create');
 }
 
-async function upsertVisit(tx: Tx, ctx: Ctx, raw: unknown) {
+export async function upsertVisit(tx: Tx, ctx: Ctx, raw: unknown) {
   const v = visitPayload.parse(raw);
   const patient = await tx.patients.findUnique({ where: { id: v.patient_id } });
   if (!patient || patient.chw_id !== ctx.chw) throw new Rejected('unknown_patient');
@@ -161,15 +171,7 @@ const iso = (d: Date | null) => d?.toISOString() ?? null;
 export function syncRouter(db: Db) {
   const router = Router();
   router.use(requireAuth, requireRole('chw'));
-
-  async function context(sub: string, deviceId: string): Promise<Ctx> {
-    const device = await db.devices.findFirst({
-      where: { id: deviceId, user_id: sub, revoked_at: null },
-      include: { user: true },
-    });
-    if (!device || !device.user.active) throw new HttpError(403, 'unknown_device');
-    return { chw: sub, deviceId, healthCenterId: device.user.health_center_id };
-  }
+  const context = (sub: string, deviceId: string) => deviceContext(db, sub, deviceId);
 
   // Each change commits on its own, in order. A transient error fails the request so the phone retries
   // the batch; already-applied changes are idempotent by UUID.
@@ -206,7 +208,7 @@ export function syncRouter(db: Db) {
 
     // shortcut: patients carry only the phone's clock, so all of this CHW's patients come back each
     // time (tens to hundreds of rows); add a server-side changed_at column if that grows.
-    const [patients, alerts, dangerSigns] = await Promise.all([
+    const [patients, alerts, dangerSigns, me] = await Promise.all([
       db.patients.findMany({ where: { chw_id: sub, NOT: { full_name: STUB_PATIENT_NAME } } }),
       db.alerts.findMany({
         where: {
@@ -219,11 +221,14 @@ export function syncRouter(db: Db) {
         },
       }),
       db.danger_signs.findMany(),
+      db.users.findUnique({ where: { id: sub }, select: { health_center: { select: { call_number: true } } } }),
     ]);
     if (deviceId) await db.devices.update({ where: { id: deviceId }, data: { last_sync_at: serverTime } });
 
     res.json({
       serverTime: serverTime.toISOString(),
+      // Who the phone offers to call when an urgent SMS goes unconfirmed (TRD §5 step 7).
+      callNumber: me?.health_center?.call_number ?? null,
       patients: patients.map((p) => ({
         id: p.id,
         short_id: p.short_id,
