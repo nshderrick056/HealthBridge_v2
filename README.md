@@ -83,9 +83,6 @@ flutter build apk --debug --flavor managed
 "$ANDROID_HOME"/build-tools/<version>/aapt dump permissions build/app/outputs/flutter-apk/app-store-debug.apk
 ```
 
-On Windows, `android/gradle.properties` turns off Kotlin incremental builds: some plugins' caches fail when the
-pub cache (C:) and the project are on different drives.
-
 After changing a drift table, regenerate `lib/data/db.g.dart` (it is committed):
 
 ```bash
