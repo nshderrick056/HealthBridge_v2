@@ -8,6 +8,7 @@ import 'package:health_bridge/data/db.dart';
 import 'package:health_bridge/data/models.dart';
 import 'package:health_bridge/data/repositories/patients_repository.dart';
 import 'package:health_bridge/data/repositories/visits_repository.dart';
+import 'package:health_bridge/sync/background_sync.dart';
 import 'package:health_bridge/sync/sync_engine.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -345,5 +346,36 @@ void main() {
     await Future.wait([engine.run(), engine.run()]);
     expect(server.pushes, hasLength(1));
     expect(server.registrations, 1);
+  });
+
+  test('background run uses the saved session, saves the refreshed token and drains the outbox', () async {
+    await recordOne();
+    FlutterSecureStorage.setMockInitialValues({
+      'session': jsonEncode(
+        const Session(
+          accessToken: 'expired',
+          refreshToken: 'refresh-1',
+          userId: 'u1',
+          fullName: 'Test CHW',
+        ).toJson(),
+      ),
+    });
+    final auth = AuthService(client: server.client, baseUrl: 'http://api.test');
+    final ok = await http.runWithClient(
+      () => backgroundSync(auth: auth, openDb: () async => db),
+      () => server.client,
+    );
+    expect(ok, isTrue);
+    expect(server.refreshes, 1);
+    expect(server.pushes.single['changes'], hasLength(2));
+    expect((await auth.restore())!.accessToken, 'access-2');
+  });
+
+  test('background run while signed out opens nothing', () async {
+    final ok = await backgroundSync(
+      auth: AuthService(client: server.client),
+      openDb: () => fail('opened the database'),
+    );
+    expect(ok, isTrue);
   });
 }

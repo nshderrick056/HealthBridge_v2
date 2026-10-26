@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/providers.dart';
+import 'background_sync.dart';
 import 'sync_engine.dart';
 
 final syncEngineProvider = Provider<SyncEngine>(
@@ -27,8 +28,8 @@ final syncNowProvider = Provider<Future<void> Function()>(
 );
 
 /// Runs sync while the CHW is signed in: on start, on resume, when connectivity changes, and every
-/// minute (the outbox back-off decides what is actually due).
-// shortcut: only while the app is open; a workmanager job is needed to sync with the app closed.
+/// minute (the outbox back-off decides what is actually due). With the app closed,
+/// [scheduleBackgroundSync] takes over.
 class SyncTriggers extends ConsumerStatefulWidget {
   const SyncTriggers({super.key, required this.child});
 
@@ -55,6 +56,7 @@ class _SyncTriggersState extends ConsumerState<SyncTriggers> {
     );
     _tick = Timer.periodic(const Duration(minutes: 1), (_) => _sync());
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+    unawaited(scheduleBackgroundSync());
   }
 
   @override
