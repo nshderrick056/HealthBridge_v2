@@ -28,7 +28,22 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 | 5 | Sync engine: `/sync/push` (idempotent, merges SMS partial cases), `/sync/pull`, app outbox drain with back-off (`lib/sync/`) | done: while open (start, resume, connectivity, every minute) and on Android with the app closed (workmanager every 30 min once online, `lib/sync/background_sync.dart`); not yet tried on a phone |
 | 6 | Urgent pathway: `POST /alerts` (internet, 10 s), else the sealed SMS through `UrgentSender` (composer in `store`, direct send + ack receiver in `managed`); unconfirmed after 10 min with Resend and Call (`lib/urgent/`) | done; the real-SIM run with the managed build is still to do |
 | 7 | Supervisor dashboard: `GET /alerts`, `GET`/`PATCH /alerts/:id`, `GET /chws` (scoped to the supervisor's health centre); `dashboard/` with login, 10 s alert inbox, case detail with status actions, CHW list | done (not yet deployed; Escalate and Follow-up do not SMS the CHW yet; the CHW sees them on the next sync) |
-| 8 | Release and Vercel deploy | |
+| 8 | Release and Vercel deploy | not started |
+
+## Still to do
+
+- **On a phone with a SIM:** the managed build sending an urgent SMS in airplane mode; 20 visits recorded
+  offline, app killed and phone rebooted, each syncing exactly once; background sync firing with the app closed.
+- **Africa's Talking sandbox:** a real inbound SMS and `HB OK` reply (needs `AT_*` in `server/.env` and the app
+  built with `SMS_GATEWAY_NUMBER`).
+- **Slice 8:** both Vercel projects with Neon Postgres, migrations from CI on a tag, a release job that builds the
+  signed store `.aab` and managed `.apk`, demo seed data. Needs the Vercel/Neon accounts and a release keystore.
+- **Content:** the visit-form fields and danger-sign list are placeholders until the Figma file is readable, and
+  the Kinyarwanda labels are marked `[RW pending]`.
+- **Gaps:** Escalate and Follow-up reach the CHW only on the next sync, not by SMS. The managed build accepts an
+  `HB OK <code>` reply from any sender; the 8-character code is the only check.
+- **Before the Play upload:** workmanager adds foreground-service, wake-lock, boot and notification permissions
+  to both builds; Play may ask for a foreground-service justification.
 
 ## Run it
 
@@ -56,6 +71,20 @@ npm ci
 npm test
 npm run dev                 # http://localhost:3001, sign in as supervisor@example.test with SEED_PASSWORD
 ```
+
+Demo logins from `npm run db:seed`: CHWs `+250780000101`, `+250780000102`, `+250780000103` with `SEED_PIN` (in
+the app); the supervisor `supervisor@example.test` with `SEED_PASSWORD` (in the dashboard).
+
+Build both APKs and check that only the managed one asks for SMS permissions (CI does the same):
+
+```bash
+flutter build apk --debug --flavor store
+flutter build apk --debug --flavor managed
+"$ANDROID_HOME"/build-tools/<version>/aapt dump permissions build/app/outputs/flutter-apk/app-store-debug.apk
+```
+
+On Windows, `android/gradle.properties` turns off Kotlin incremental builds: some plugins' caches fail when the
+pub cache (C:) and the project are on different drives.
 
 After changing a drift table, regenerate `lib/data/db.g.dart` (it is committed):
 
