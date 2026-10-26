@@ -12,7 +12,7 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 | `android/` | Flavours `store` (no SMS permission, opens the SMS composer) and `managed` (sends SMS directly through the Kotlin channel in `app/src/managed/kotlin/`, no SMS plugin). |
 | `server/` | Express + TypeScript + Prisma API, tested with Vitest and Supertest. |
 | `shared/sms-vectors.json` | Test vectors that both the TypeScript and Dart SMS codecs must pass. |
-| `dashboard/` | Supervisor dashboard (Next.js). Not started. |
+| `dashboard/` | Supervisor dashboard (Next.js + Tailwind, tested with Vitest). Talks to the API through its own route handlers, which keep the tokens in httpOnly cookies. |
 | `documents/` | PRD, TRD, Backend Schema, App Flow, Design Brief, Implementation Plan, Build Plan. |
 
 ## Status
@@ -27,7 +27,7 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 | UI | CHW screens from Figma: login, home, patients, patient profile, record/review visit, urgent, saved, sync status (plus register-patient, alerts and profile tabs, which Figma lacks) | done; the two supervisor frames go to the web dashboard (slice 7) |
 | 5 | Sync engine: `/sync/push` (idempotent, merges SMS partial cases), `/sync/pull`, app outbox drain with back-off (`lib/sync/`) | done: while open (start, resume, connectivity, every minute) and on Android with the app closed (workmanager every 30 min once online, `lib/sync/background_sync.dart`); not yet tried on a phone |
 | 6 | Urgent pathway: `POST /alerts` (internet, 10 s), else the sealed SMS through `UrgentSender` (composer in `store`, direct send + ack receiver in `managed`); unconfirmed after 10 min with Resend and Call (`lib/urgent/`) | done; the real-SIM run with the managed build is still to do |
-| 7 | Supervisor dashboard | |
+| 7 | Supervisor dashboard: `GET /alerts`, `GET`/`PATCH /alerts/:id`, `GET /chws` (scoped to the supervisor's health centre); `dashboard/` with login, 10 s alert inbox, case detail with status actions, CHW list | done (not yet deployed; Escalate and Follow-up do not SMS the CHW yet; the CHW sees them on the next sync) |
 | 8 | Release and Vercel deploy | |
 
 ## Run it
@@ -48,6 +48,13 @@ flutter pub get
 flutter test
 flutter run --flavor store --dart-define=SMS_GATEWAY_NUMBER=+2507XXXXXXXX   # or --flavor managed
 flutter run -d chrome --web-port 8080   # browser preview: keep the port fixed, browser data is stored per port
+
+# supervisor dashboard (needs the server running)
+cd dashboard
+cp .env.example .env.local  # API_URL=http://localhost:3000
+npm ci
+npm test
+npm run dev                 # http://localhost:3001, sign in as supervisor@example.test with SEED_PASSWORD
 ```
 
 After changing a drift table, regenerate `lib/data/db.g.dart` (it is committed):
