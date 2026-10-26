@@ -2,4 +2,16 @@
     <!-- Managed build only. Never move these into src/main: Google Play rejects the store build. -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+
+    <application>
+        <!-- Reads the server's "HB OK <code>" acknowledgement (TRD §5 step 6), even with the app closed. -->
+        <receiver
+            android:name=".SmsAckReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+    </application>
 </manifest>

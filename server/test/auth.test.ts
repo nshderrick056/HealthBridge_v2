@@ -74,7 +74,7 @@ beforeEach(async () => {
       locked_until: null,
     },
   ];
-  app = createApp({ db: fakeDb(users) });
+  app = createApp({ db: fakeDb(users), sender: { send: async () => ({ gatewayId: null }) } });
 });
 
 const login = (body: object) => request(app).post('/auth/login').send(body);
@@ -165,5 +165,15 @@ describe('requireAuth / requireRole', () => {
     await request(guarded).get('/sup').set('authorization', `Bearer ${token('chw')}`).expect(403);
     const res = await request(guarded).get('/sup').set('authorization', `Bearer ${token('supervisor')}`).expect(200);
     expect(res.body).toEqual({ sub: 'u1', role: 'supervisor', hc: 'hc1' });
+  });
+});
+
+describe('CORS for the web build', () => {
+  it('answers a localhost preflight and ignores other origins', async () => {
+    const ok = await request(app).options('/auth/login').set('origin', 'http://localhost:54321').expect(204);
+    expect(ok.headers['access-control-allow-origin']).toBe('http://localhost:54321');
+    expect(ok.headers['access-control-allow-headers']).toContain('authorization');
+    const other = await request(app).options('/auth/login').set('origin', 'https://evil.example').expect(204);
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
