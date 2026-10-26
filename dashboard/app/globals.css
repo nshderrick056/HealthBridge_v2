@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+/* Tokens from lib/core/theme/app_theme.dart (Figma "healthbridge-v2"). The default palette is
+   switched off so only these colours exist. */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+  --color-teal: #087a67;
+  --color-teal-dark: #06604f;
+  --color-green: #147a49;
+  --color-red: #b4232c;
+  --color-warning: #9a5b00;
+  --color-ink: #132824;
+  --color-muted: #536a65;
+  --color-surface: #f4f7f6;
+  --color-line: #cbdad6;
+  --color-divider: #e2eae7;
+  --color-teal-tint: #e5f4f0;
+  --color-green-tint: #e4f5ea;
+  --color-amber-tint: #fff2d6;
+  --color-red-tint: #fde8ea;
+  --color-neutral-tint: #edf3f1;
+
+  /* The app falls back to the platform font until Inter is bundled; so does the dashboard. */
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
