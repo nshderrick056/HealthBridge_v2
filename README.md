@@ -37,16 +37,22 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 - **Africa's Talking sandbox:** a real inbound SMS and `HB OK` reply (needs `AT_*` in `server/.env` and the app
   built with `SMS_GATEWAY_NUMBER`).
 - **Release:** create the accounts, keystore and secrets in the Release section below, then push a `v*` tag.
-- **Content:** the visit-form fields and danger-sign list are placeholders until the Figma file is readable, and
-  the Kinyarwanda labels are marked `[RW pending]`.
-- **Gaps:** The managed build accepts an
-  `HB OK <code>` reply from any sender; the 8-character code is the only check.
+  After that, clean installs of both builds against the deployed API, checking an alert reaches the dashboard
+  within 10 s.
+- **Clinical content:** the danger-sign list and the validation ranges (`lib/data/forms/`) are placeholders
+  until a clinician confirms them.
+- **Kinyarwanda (FR-17):** app text is English and hard-coded in the screens; it needs translation files and a
+  native speaker. Danger-sign labels in the database are marked `[RW pending]`.
+- **Font:** Inter (the Figma typeface) is not bundled yet; the app uses the system font.
+- **Gaps:** the managed build accepts an `HB OK <code>` reply from any sender; the 8-character code is the only
+  check.
+- **Local only:** `web/` (browser preview) and `windows/` are not committed.
 - **Before the Play upload:** workmanager adds foreground-service, wake-lock, boot and notification permissions
   to both builds; Play may ask for a foreground-service justification.
 
 ## Run it
 
-Needs Flutter (stable), Node 20+ and PostgreSQL 16.
+Needs Flutter (stable), Node 20+ and PostgreSQL 16 or later.
 
 ```bash
 # server
