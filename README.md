@@ -27,8 +27,8 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 | UI | CHW screens from Figma: login, home, patients, patient profile, record/review visit, urgent, saved, sync status (plus register-patient, alerts and profile tabs, which Figma lacks) | done; the two supervisor frames go to the web dashboard (slice 7) |
 | 5 | Sync engine: `/sync/push` (idempotent, merges SMS partial cases), `/sync/pull`, app outbox drain with back-off (`lib/sync/`) | done: while open (start, resume, connectivity, every minute) and on Android with the app closed (workmanager every 30 min once online, `lib/sync/background_sync.dart`); not yet tried on a phone |
 | 6 | Urgent pathway: `POST /alerts` (internet, 10 s), else the sealed SMS through `UrgentSender` (composer in `store`, direct send + ack receiver in `managed`); unconfirmed after 10 min with Resend and Call (`lib/urgent/`) | done; the real-SIM run with the managed build is still to do |
-| 7 | Supervisor dashboard: `GET /alerts`, `GET`/`PATCH /alerts/:id`, `GET /chws` (scoped to the supervisor's health centre); `dashboard/` with login, 10 s alert inbox, case detail with status actions, CHW list | done (not yet deployed; Escalate and Follow-up do not SMS the CHW yet; the CHW sees them on the next sync) |
-| 8 | Release and Vercel deploy | not started |
+| 7 | Supervisor dashboard: `GET /alerts`, `GET`/`PATCH /alerts/:id`, `GET /chws` (scoped to the supervisor's health centre); `dashboard/` with login, 10 s alert inbox, case detail with status actions, CHW list | done (not yet deployed); Escalate and Follow-up also text the CHW the case code |
+| 8 | Release: Vercel entry (`server/api/`), signed builds and migrations on a `v*` tag (`.github/workflows/release.yml`), admin endpoints for real accounts | code done; needs your Vercel/Neon accounts, keystore and GitHub secrets (see Release below) |
 
 ## Still to do
 
@@ -36,11 +36,10 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
   offline, app killed and phone rebooted, each syncing exactly once; background sync firing with the app closed.
 - **Africa's Talking sandbox:** a real inbound SMS and `HB OK` reply (needs `AT_*` in `server/.env` and the app
   built with `SMS_GATEWAY_NUMBER`).
-- **Slice 8:** both Vercel projects with Neon Postgres, migrations from CI on a tag, a release job that builds the
-  signed store `.aab` and managed `.apk`, demo seed data. Needs the Vercel/Neon accounts and a release keystore.
+- **Release:** create the accounts, keystore and secrets in the Release section below, then push a `v*` tag.
 - **Content:** the visit-form fields and danger-sign list are placeholders until the Figma file is readable, and
   the Kinyarwanda labels are marked `[RW pending]`.
-- **Gaps:** Escalate and Follow-up reach the CHW only on the next sync, not by SMS. The managed build accepts an
+- **Gaps:** The managed build accepts an
   `HB OK <code>` reply from any sender; the 8-character code is the only check.
 - **Before the Play upload:** workmanager adds foreground-service, wake-lock, boot and notification permissions
   to both builds; Play may ask for a foreground-service justification.
@@ -73,7 +72,19 @@ npm run dev                 # http://localhost:3001, sign in as supervisor@examp
 ```
 
 Demo logins from `npm run db:seed`: CHWs `+250780000101`, `+250780000102`, `+250780000103` with `SEED_PIN` (in
-the app); the supervisor `supervisor@example.test` with `SEED_PASSWORD` (in the dashboard).
+the app); the supervisor `supervisor@example.test` with `SEED_PASSWORD` (in the dashboard); the admin
+`admin@example.test` with `SEED_PASSWORD` (API only, below).
+
+Real accounts (there is no sign-up): an admin creates health centres and people over the API.
+
+```bash
+# first admin of a deployment (reads DATABASE_URL/DIRECT_URL from server/.env)
+ADMIN_EMAIL=you@example.org ADMIN_PHONE=+2507XXXXXXXX ADMIN_PASSWORD='at-least-12-chars' npm run create-admin
+# then, with the admin's access token from POST /auth/login:
+#   POST /admin/health-centers {name, district, sector, callNumber?}
+#   POST /admin/users {role:"chw", fullName, phone, pin, chwRole:"asm"|"binome", village, healthCenterId}
+#   POST /admin/users {role:"supervisor", fullName, phone, email, password, healthCenterId}
+```
 
 Build both APKs and check that only the managed one asks for SMS permissions (CI does the same):
 
@@ -82,6 +93,9 @@ flutter build apk --debug --flavor store
 flutter build apk --debug --flavor managed
 "$ANDROID_HOME"/build-tools/<version>/aapt dump permissions build/app/outputs/flutter-apk/app-store-debug.apk
 ```
+
+`android/gradle.properties` turns off Kotlin incremental builds: some plugins' caches fail when the pub cache
+(C:) and the project are on different drives.
 
 After changing a drift table, regenerate `lib/data/db.g.dart` (it is committed):
 
@@ -101,6 +115,25 @@ The app sends urgent SMS to the gateway's number, set at build time with
 for a real server). Without it the `managed` build cannot send (the alert shows as unconfirmed with Resend and
 Call) and the `store` build opens the SMS app with no recipient. The Call button dials the health centre's
 `call_number`, which the phone receives on each sync.
+
+## Release
+
+1. **Database:** create a Neon Postgres project (Vercel Marketplace). Keep its pooled URL and its direct URL.
+2. **API on Vercel:** new project, root directory `server/`. Env vars: `DATABASE_URL` (pooled), `DIRECT_URL`
+   (direct), `JWT_SECRET`, `JWT_REFRESH_SECRET`, `SMS_KEY_ENC_KEY`, `SMS_WEBHOOK_SECRET`, `AT_USERNAME`,
+   `AT_API_KEY`, `AT_SENDER`, `CORS_ORIGINS` (the dashboard URL). `server/api/index.ts` serves every path.
+3. **Dashboard on Vercel:** new project, root directory `dashboard/`, env var `API_URL` (the API URL).
+4. **First data:** from `server/` with the Neon direct URL in `.env`, run `npm run db:migrate`, then
+   `npm run create-admin` (real) or `npm run db:seed` (demo data only, never alongside real patients).
+5. **Signing key** (once; keep the file and passwords safe, a lost key means a new app listing):
+   ```bash
+   keytool -genkey -v -keystore healthbridge-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias healthbridge
+   ```
+6. **GitHub (Settings → Secrets and variables → Actions):** secrets `PROD_DIRECT_URL`,
+   `ANDROID_KEYSTORE_BASE64` (`base64 -w0 healthbridge-release.jks`), `ANDROID_KEY_ALIAS` (`healthbridge`),
+   `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`; variables `API_URL`, `SMS_GATEWAY_NUMBER`.
+7. **Ship:** `git tag v1.0.0 && git push origin v1.0.0`. The Release workflow migrates the database, builds the
+   signed store `.aab` and managed `.apk`, checks SMS permissions, and attaches both to a GitHub release.
 
 ## Secrets
 
