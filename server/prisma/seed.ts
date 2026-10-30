@@ -58,6 +58,20 @@ await db.users.upsert({
   },
 });
 
+// Creates centres and accounts through POST /admin/* (email + SEED_PASSWORD).
+await db.users.upsert({
+  where: { phone: '+250780000099' },
+  update: {},
+  create: {
+    role: 'admin',
+    full_name: 'Demo Admin',
+    phone: '+250780000099',
+    email: 'admin@example.test',
+    secret_hash: passwordHash,
+    language: 'en',
+  },
+});
+
 for (const [i, village] of ['Village A', 'Village B', 'Village C'].entries()) {
   const phone = `+25078000010${i + 1}`;
   await db.users.upsert({
@@ -83,5 +97,5 @@ for (const s of dangerSigns) {
   });
 }
 
-console.log('Seeded: 1 health centre, 1 supervisor, 3 CHWs, %d placeholder danger signs', dangerSigns.length);
+console.log('Seeded: 1 health centre, 1 admin, 1 supervisor, 3 CHWs, %d placeholder danger signs', dangerSigns.length);
 await db.$disconnect();

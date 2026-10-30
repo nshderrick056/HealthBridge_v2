@@ -1,4 +1,5 @@
 import express from 'express';
+import { adminRouter } from './admin/routes';
 import { chwAlertsRouter } from './alerts/routes';
 import { authRouter } from './auth/routes';
 import type { Db } from './db';
@@ -35,7 +36,8 @@ export function createApp({ db, sender }: { db: Db; sender: SmsSender }) {
   });
   app.use('/auth', authRouter(db));
   app.use('/devices', devicesRouter(db));
-  app.use(supervisorRouter(db)); // GET /alerts, GET|PATCH /alerts/:id, GET /chws; guarded per route
+  app.use('/admin', adminRouter(db));
+  app.use(supervisorRouter(db, sender));// GET /alerts, GET|PATCH /alerts/:id, GET /chws; guarded per route
   app.use('/webhooks/sms', smsRouter(db, sender));
   app.use('/sync', syncRouter(db));
   app.use('/alerts', chwAlertsRouter(db));

@@ -26,6 +26,8 @@ describe.skipIf(!url)('supervisor dashboard API against Postgres', () => {
   const deviceB = `SB${tag}`;
   const users = [supA, supB, chwA, chwB];
   const t0 = new Date('2026-10-06T08:00:00Z');
+  const sent: { to: string; text: string }[] = [];
+  let sendFails = false;
 
   const token = (sub: string, role: Role, hc: string | null) => `Bearer ${signAccess({ sub, role, hc })}`;
   const asA = token(supA, 'supervisor', centreA);
@@ -80,7 +82,16 @@ describe.skipIf(!url)('supervisor dashboard API against Postgres', () => {
 
   beforeAll(async () => {
     db = createPrisma(url);
-    app = createApp({ db, sender: { send: async () => ({ gatewayId: null }) } });
+    app = createApp({
+      db,
+      sender: {
+        send: async (to, text) => {
+          if (sendFails) throw new Error('gateway down');
+          sent.push({ to, text });
+          return { gatewayId: null };
+        },
+      },
+    });
     for (const [id, name] of [
       [centreA, 'Centre A'],
       [centreB, 'Centre B'],
@@ -118,6 +129,7 @@ describe.skipIf(!url)('supervisor dashboard API against Postgres', () => {
     await db.alert_events.deleteMany({ where: { alert: { health_center_id: { in: centres } } } });
     await db.alerts.deleteMany({ where: { health_center_id: { in: centres } } });
     await db.audit_log.deleteMany({ where: { actor_id: { in: users } } });
+    await db.sms_messages.deleteMany({ where: { device_id: { in: [deviceA, spareA, deviceB] } } });
     await db.visits.deleteMany({ where: { chw_id: { in: users } } }); // cascades visit_danger_signs
     await db.patients.deleteMany({ where: { chw_id: { in: users } } });
     await db.devices.deleteMany({ where: { user_id: { in: users } } });
@@ -208,6 +220,37 @@ describe.skipIf(!url)('supervisor dashboard API against Postgres', () => {
       events: [{ fromStatus: 'new', toStatus: 'follow_up', actor: 'Supervisor A', note: 'Follow up by 2026-10-08' }],
     });
     expect(detail.body.patient).not.toHaveProperty('phone');
+  });
+
+  it('escalate and follow-up text the CHW the case code (no patient details); other moves do not', async () => {
+    const chwPhone = `+2507${tag}20`;
+    const a = await urgentCase(chwA, deviceA, centreA, 8);
+    const code = (await db.visits.findFirstOrThrow({ where: { alert: { id: a.id } } })).short_code;
+    sent.length = 0;
+
+    await patch(a.id, { status: 'reviewed' }).expect(200);
+    expect(sent).toEqual([]);
+    await patch(a.id, { status: 'escalated' }).expect(200);
+    await patch(a.id, { status: 'follow_up' }).expect(200);
+    expect(sent.map((s) => s.to)).toEqual([chwPhone, chwPhone]);
+    expect(sent[0].text).toContain(code);
+    expect(sent.map((s) => s.text).join(' ')).not.toMatch(/Uwase|Nyamata/);
+
+    const logged = await db.sms_messages.findMany({ where: { visit_id: { not: null }, phone: chwPhone, direction: 'out' } });
+    expect(logged.filter((m) => m.status === 'sent').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('a failed notice is logged and the status change still stands', async () => {
+    const a = await urgentCase(chwA, deviceA, centreA, 9);
+    sendFails = true;
+    try {
+      await patch(a.id, { status: 'escalated' }).expect(200);
+    } finally {
+      sendFails = false;
+    }
+    expect(await db.alerts.findUnique({ where: { id: a.id } })).toMatchObject({ status: 'escalated' });
+    const visitId = (await db.alerts.findUniqueOrThrow({ where: { id: a.id } })).visit_id;
+    expect(await db.sms_messages.findFirst({ where: { visit_id: visitId } })).toMatchObject({ status: 'failed' });
   });
 
   it('refuses moves the workflow does not allow', async () => {

@@ -12,6 +12,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "create-admin": "tsx prisma/create-admin.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

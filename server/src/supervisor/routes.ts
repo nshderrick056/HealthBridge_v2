@@ -9,6 +9,7 @@ import type { Db } from '../db';
 import type { alert_status } from '../generated/prisma/client';
 import { HttpError } from '../http';
 import { requireAuth, requireRole } from '../middleware/auth';
+import type { SmsSender } from '../sms/gateway';
 import { STUB_PATIENT_NAME } from '../sms/webhook';
 
 const STATUSES = ['new', 'reviewed', 'escalated', 'follow_up', 'resolved'] as const;
@@ -45,8 +46,33 @@ const iso = (d: Date | null) => d?.toISOString() ?? null;
 // An SMS-only case has a stub patient: name unknown and no village, until the full record syncs.
 const patientName = (p: { full_name: string }) => (p.full_name === STUB_PATIENT_NAME ? null : p.full_name);
 
-export function supervisorRouter(db: Db) {
+// Status changes the CHW must act on are texted at once instead of waiting for the next sync.
+// The text carries only the case code, never patient details (an SMS inbox is not private).
+const CHW_NOTICE: Partial<Record<alert_status, (code: string) => string>> = {
+  escalated: (code) => `HealthBridge: case ${code} has been escalated by the health centre.`,
+  follow_up: (code) => `HealthBridge: the health centre asks you to follow up case ${code}.`,
+};
+
+export function supervisorRouter(db: Db, sender: SmsSender) {
   const router = Router();
+
+  /** Sends and logs the CHW notice. A failed send is logged, never an error: the status change stands. */
+  async function notifyChw(alertId: string, status: alert_status) {
+    const notice = CHW_NOTICE[status];
+    if (!notice) return;
+    const { visit } = await db.alerts.findUniqueOrThrow({
+      where: { id: alertId },
+      select: { visit: { select: { id: true, short_code: true, device_id: true, chw: { select: { phone: true } } } } },
+    });
+    const text = notice(visit.short_code);
+    const out = { direction: 'out', phone: visit.chw.phone, device_id: visit.device_id, raw_text: text, visit_id: visit.id };
+    try {
+      const { gatewayId } = await sender.send(visit.chw.phone, text);
+      await db.sms_messages.create({ data: { ...out, status: 'sent', gateway_id: gatewayId } });
+    } catch (e) {
+      await db.sms_messages.create({ data: { ...out, status: 'failed', error: String(e).slice(0, 200) } });
+    }
+  }
 
   const findAlert = async (req: Request, hc: string) => {
     const { id } = idParams.parse(req.params);
@@ -178,6 +204,7 @@ export function supervisorRouter(db: Db) {
         data: { alert_id: alert.id, actor_id: sub, from_status: alert.status, to_status: status, note: note || null },
       });
     });
+    await notifyChw(alert.id, status);
 
     res.json({
       id: alert.id,
