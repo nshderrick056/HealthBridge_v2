@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/settings/settings.dart';
 import 'core/theme/app_theme.dart';
 import 'data/providers.dart';
-import 'features/auth/login_screen.dart';
-import 'features/shell/app_shell.dart';
+import 'presentation/auth/login_screen.dart';
+import 'presentation/shell/app_shell.dart';
 import 'sync/sync_service.dart';
 import 'urgent/urgent_service.dart';
 

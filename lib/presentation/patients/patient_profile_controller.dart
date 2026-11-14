@@ -13,13 +13,13 @@ class PatientActions {
   final Ref _ref;
 
   Future<Patient> archive(Patient p) async {
-    final archived = await _ref.read(patientsRepositoryProvider).archive(p);
+    final archived = await _ref.read(archivePatientProvider).call(p);
     unawaited(_ref.read(syncNowProvider)());
     return archived;
   }
 
   Future<void> restore(Patient p) async {
-    await _ref.read(patientsRepositoryProvider).restore(p);
+    await _ref.read(archivePatientProvider).undo(p);
     unawaited(_ref.read(syncNowProvider)());
   }
 }

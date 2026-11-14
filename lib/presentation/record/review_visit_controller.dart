@@ -17,13 +17,13 @@ class SubmitVisitController extends Notifier<bool> {
     state = true;
     try {
       final visit = await ref
-          .read(visitsRepositoryProvider)
-          .record(
+          .read(recordVisitUseCaseProvider)
+          .call(
             patientId: f.patient.id,
             type: f.type,
             answers: f.answers,
-            signCodes: f.signs.toList(),
-            notes: f.notes.trim().isEmpty ? null : f.notes.trim(),
+            signCodes: f.signs,
+            notes: f.notes,
           );
       await ref.read(draftsRepositoryProvider).delete(draftKey);
       // Upload now if online; the outbox keeps it otherwise.

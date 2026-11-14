@@ -110,7 +110,7 @@ class UrgentDispatcher {
       _repo.confirmShortCode(shortCode);
 
   /// Drains the acks the managed build's receiver collected (also while the app was closed). Each is
-  /// "<code> <tag>"; one whose tag does not match this device's key is ignored, so only the server,
+  /// `<code> <tag>`; one whose tag does not match this device's key is ignored, so only the server,
   /// which holds the same key, can confirm an alert.
   Future<void> applyAcks() async {
     final acks = await sender.takeAcks();

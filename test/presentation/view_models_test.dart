@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:health_bridge/core/widgets/widgets.dart';
 import 'package:health_bridge/data/db.dart';
 import 'package:health_bridge/data/models.dart';
-import 'package:health_bridge/features/view_models.dart';
+import 'package:health_bridge/presentation/view_models.dart';
 
 void main() {
   final now = DateTime.now();

@@ -3,12 +3,13 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../domain/repositories/patient_repository.dart';
 import '../db.dart';
 import '../models.dart';
 
 /// Every write puts the patient row and its outbox row in one transaction, so a record is never
 /// saved without being queued for upload (or the other way round).
-class PatientsRepository {
+class PatientsRepository implements PatientRepository {
   PatientsRepository(this._db, {DateTime Function()? now})
     : _now = now ?? (() => DateTime.now().toUtc());
 
@@ -16,6 +17,7 @@ class PatientsRepository {
   final DateTime Function() _now;
   static const _uuid = Uuid();
 
+  @override
   Future<Patient> create({
     required String fullName,
     required String village,
@@ -48,6 +50,7 @@ class PatientsRepository {
     });
   }
 
+  @override
   Future<Patient> update(Patient p) {
     return _db.transaction(() async {
       final next = p.copyWith(updatedAt: _now(), syncState: SyncState.queued);
@@ -58,13 +61,16 @@ class PatientsRepository {
   }
 
   /// The app's "delete": hides the patient everywhere but keeps the record, and syncs like an edit.
+  @override
   Future<Patient> archive(Patient p) =>
       update(p.copyWith(archivedAt: Value(_now())));
 
   /// Undoes [archive].
+  @override
   Future<Patient> restore(Patient p) =>
       update(p.copyWith(archivedAt: const Value(null)));
 
+  @override
   Future<Patient?> get(String id) => (_db.select(
     _db.patients,
   )..where((t) => t.id.equals(id))).getSingleOrNull();

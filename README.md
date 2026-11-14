@@ -8,7 +8,8 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 
 | Path | What |
 | --- | --- |
-| `lib/` | Flutter app (Android only). `core/sms/` is the SMS codec, `data/` the offline database and repositories, `sync/` the outbox sync and `urgent/` the urgent-alert pathway. The CHW screens are in `features/` (from the Figma file `healthbridge-v2`), with theme tokens in `core/theme/` and shared widgets in `core/widgets/`. |
+| `lib/` | Flutter app (Android only), in layers: `presentation/` (screens from the Figma file `healthbridge-v2`, each with a Riverpod controller beside it; no `setState`), `domain/` (entities, repository interfaces, use cases), `data/` (encrypted drift database and the repositories implementing the domain interfaces). Around them: `core/` (auth, settings in SharedPreferences, SMS codec, theme tokens, shared widgets), `sync/` (outbox upload and background sync) and `urgent/` (urgent-alert pathway). Patient and Visit are drift's generated row classes, used as the domain entities rather than duplicated. |
+| `docs/ERD.md` | Entity-relationship diagram of the database, drawn from the Prisma schema. |
 | `android/` | Flavours `store` (no SMS permission, opens the SMS composer) and `managed` (sends SMS directly through the Kotlin channel in `app/src/managed/kotlin/`, no SMS plugin). |
 | `server/` | Express + TypeScript + Prisma API, tested with Vitest and Supertest. |
 | `shared/sms-vectors.json` | Test vectors that both the TypeScript and Dart SMS codecs must pass. |

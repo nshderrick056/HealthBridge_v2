@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db.dart';
@@ -39,29 +38,16 @@ class RegisterPatientController extends Notifier<RegisterPatientState> {
     required String age,
     required String phone,
   }) async {
-    final repo = ref.read(patientsRepositoryProvider);
-    final ageEstimate = int.tryParse(age.trim());
-    final phoneOrNull = phone.trim().isEmpty ? null : phone.trim();
-    final p = editing;
-    if (p == null) {
-      await repo.create(
-        fullName: fullName.trim(),
-        village: village.trim(),
-        sex: state.sex,
-        ageEstimate: ageEstimate,
-        phone: phoneOrNull,
-      );
-    } else {
-      await repo.update(
-        p.copyWith(
-          fullName: fullName.trim(),
-          village: village.trim(),
-          sex: Value(state.sex),
-          ageEstimate: Value(ageEstimate),
-          phone: Value(phoneOrNull),
-        ),
-      );
-    }
+    await ref
+        .read(savePatientProvider)
+        .call(
+          editing: editing,
+          fullName: fullName,
+          village: village,
+          sex: state.sex,
+          age: age,
+          phone: phone,
+        );
     unawaited(ref.read(syncNowProvider)());
   }
 }

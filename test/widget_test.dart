@@ -10,10 +10,10 @@ import 'package:health_bridge/core/widgets/widgets.dart';
 import 'package:health_bridge/data/db.dart';
 import 'package:health_bridge/data/models.dart';
 import 'package:health_bridge/data/providers.dart';
-import 'package:health_bridge/features/auth/login_screen.dart';
-import 'package:health_bridge/features/record/sms_alert_sent_screen.dart';
-import 'package:health_bridge/features/settings/settings_screen.dart';
-import 'package:health_bridge/features/shell/app_shell.dart';
+import 'package:health_bridge/presentation/auth/login_screen.dart';
+import 'package:health_bridge/presentation/record/sms_alert_sent_screen.dart';
+import 'package:health_bridge/presentation/settings/settings_screen.dart';
+import 'package:health_bridge/presentation/shell/app_shell.dart';
 import 'package:health_bridge/sync/sync_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

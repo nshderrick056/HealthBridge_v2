@@ -3,11 +3,12 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../domain/repositories/visit_repository.dart';
 import '../db.dart';
 import '../forms/danger_signs.dart';
 import '../models.dart';
 
-class VisitsRepository {
+class VisitsRepository implements VisitRepository {
   VisitsRepository(this._db, {DateTime Function()? now})
     : _now = now ?? (() => DateTime.now().toUtc());
 
@@ -17,6 +18,7 @@ class VisitsRepository {
 
   /// Saves a finished visit, its ticked danger signs and its outbox row in one transaction.
   /// `isUrgent` is derived from [signCodes] here, so the UI cannot get it out of step with the signs.
+  @override
   Future<Visit> record({
     required String patientId,
     required VisitType type,
@@ -81,6 +83,7 @@ class VisitsRepository {
     );
   });
 
+  @override
   Future<Visit?> get(String id) =>
       (_db.select(_db.visits)..where((t) => t.id.equals(id))).getSingleOrNull();
 
@@ -90,6 +93,7 @@ class VisitsRepository {
             ..orderBy([(t) => OrderingTerm.desc(t.recordedAt)]))
           .watch();
 
+  @override
   Future<List<String>> signCodes(String visitId) async {
     final rows = await (_db.select(
       _db.visitDangerSigns,

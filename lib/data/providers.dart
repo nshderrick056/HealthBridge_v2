@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../core/auth/auth_service.dart';
+import '../domain/usecases/patient_use_cases.dart';
+import '../domain/usecases/record_visit.dart';
 import 'db.dart';
 import 'repositories/danger_signs_repository.dart';
 import 'repositories/drafts_repository.dart';
@@ -29,6 +31,17 @@ final dangerSignsRepositoryProvider = Provider(
 );
 final urgentRepositoryProvider = Provider(
   (ref) => UrgentRepository(ref.watch(databaseProvider)),
+);
+
+/// Domain use cases, wired to this layer's repositories (the domain only knows the interfaces).
+final savePatientProvider = Provider(
+  (ref) => SavePatient(ref.watch(patientsRepositoryProvider)),
+);
+final archivePatientProvider = Provider(
+  (ref) => ArchivePatient(ref.watch(patientsRepositoryProvider)),
+);
+final recordVisitUseCaseProvider = Provider(
+  (ref) => RecordVisit(ref.watch(visitsRepositoryProvider)),
 );
 
 /// Live tables for the list screens and summaries. Archived patients are left out everywhere.
