@@ -124,6 +124,17 @@ class $PatientsTable extends Patients with TableInfo<$PatientsTable, Patient> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   late final GeneratedColumnWithTypeConverter<SyncState, String> syncState =
       GeneratedColumn<String>(
@@ -147,6 +158,7 @@ class $PatientsTable extends Patients with TableInfo<$PatientsTable, Patient> {
     consentAt,
     createdAt,
     updatedAt,
+    archivedAt,
     syncState,
   ];
   @override
@@ -241,6 +253,12 @@ class $PatientsTable extends Patients with TableInfo<$PatientsTable, Patient> {
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -294,6 +312,10 @@ class $PatientsTable extends Patients with TableInfo<$PatientsTable, Patient> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
       syncState: $PatientsTable.$convertersyncState.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -324,6 +346,9 @@ class Patient extends DataClass implements Insertable<Patient> {
   final DateTime consentAt;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Set when the CHW archives the patient (the app's "delete"); the record and visits are kept.
+  final DateTime? archivedAt;
   final SyncState syncState;
   const Patient({
     required this.id,
@@ -337,6 +362,7 @@ class Patient extends DataClass implements Insertable<Patient> {
     required this.consentAt,
     required this.createdAt,
     required this.updatedAt,
+    this.archivedAt,
     required this.syncState,
   });
   @override
@@ -361,6 +387,9 @@ class Patient extends DataClass implements Insertable<Patient> {
     map['consent_at'] = Variable<DateTime>(consentAt);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
     {
       map['sync_state'] = Variable<String>(
         $PatientsTable.$convertersyncState.toSql(syncState),
@@ -388,6 +417,9 @@ class Patient extends DataClass implements Insertable<Patient> {
       consentAt: Value(consentAt),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
       syncState: Value(syncState),
     );
   }
@@ -409,6 +441,7 @@ class Patient extends DataClass implements Insertable<Patient> {
       consentAt: serializer.fromJson<DateTime>(json['consentAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
       syncState: $PatientsTable.$convertersyncState.fromJson(
         serializer.fromJson<String>(json['syncState']),
       ),
@@ -429,6 +462,7 @@ class Patient extends DataClass implements Insertable<Patient> {
       'consentAt': serializer.toJson<DateTime>(consentAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
       'syncState': serializer.toJson<String>(
         $PatientsTable.$convertersyncState.toJson(syncState),
       ),
@@ -447,6 +481,7 @@ class Patient extends DataClass implements Insertable<Patient> {
     DateTime? consentAt,
     DateTime? createdAt,
     DateTime? updatedAt,
+    Value<DateTime?> archivedAt = const Value.absent(),
     SyncState? syncState,
   }) => Patient(
     id: id ?? this.id,
@@ -460,6 +495,7 @@ class Patient extends DataClass implements Insertable<Patient> {
     consentAt: consentAt ?? this.consentAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
     syncState: syncState ?? this.syncState,
   );
   Patient copyWithCompanion(PatientsCompanion data) {
@@ -477,6 +513,9 @@ class Patient extends DataClass implements Insertable<Patient> {
       consentAt: data.consentAt.present ? data.consentAt.value : this.consentAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
       syncState: data.syncState.present ? data.syncState.value : this.syncState,
     );
   }
@@ -495,6 +534,7 @@ class Patient extends DataClass implements Insertable<Patient> {
           ..write('consentAt: $consentAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('syncState: $syncState')
           ..write(')'))
         .toString();
@@ -513,6 +553,7 @@ class Patient extends DataClass implements Insertable<Patient> {
     consentAt,
     createdAt,
     updatedAt,
+    archivedAt,
     syncState,
   );
   @override
@@ -530,6 +571,7 @@ class Patient extends DataClass implements Insertable<Patient> {
           other.consentAt == this.consentAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
+          other.archivedAt == this.archivedAt &&
           other.syncState == this.syncState);
 }
 
@@ -545,6 +587,7 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
   final Value<DateTime> consentAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<DateTime?> archivedAt;
   final Value<SyncState> syncState;
   final Value<int> rowid;
   const PatientsCompanion({
@@ -559,6 +602,7 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     this.consentAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.syncState = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -574,6 +618,7 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     required DateTime consentAt,
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.archivedAt = const Value.absent(),
     this.syncState = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -595,6 +640,7 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     Expression<DateTime>? consentAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<DateTime>? archivedAt,
     Expression<String>? syncState,
     Expression<int>? rowid,
   }) {
@@ -610,6 +656,7 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
       if (consentAt != null) 'consent_at': consentAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (archivedAt != null) 'archived_at': archivedAt,
       if (syncState != null) 'sync_state': syncState,
       if (rowid != null) 'rowid': rowid,
     });
@@ -627,6 +674,7 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     Value<DateTime>? consentAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<DateTime?>? archivedAt,
     Value<SyncState>? syncState,
     Value<int>? rowid,
   }) {
@@ -642,6 +690,7 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
       consentAt: consentAt ?? this.consentAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      archivedAt: archivedAt ?? this.archivedAt,
       syncState: syncState ?? this.syncState,
       rowid: rowid ?? this.rowid,
     );
@@ -683,6 +732,9 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
     if (syncState.present) {
       map['sync_state'] = Variable<String>(
         $PatientsTable.$convertersyncState.toSql(syncState.value),
@@ -708,6 +760,7 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
           ..write('consentAt: $consentAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('syncState: $syncState, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -3319,6 +3372,7 @@ typedef $$PatientsTableCreateCompanionBuilder = PatientsCompanion Function({
   required DateTime consentAt,
   required DateTime createdAt,
   required DateTime updatedAt,
+  Value<DateTime?> archivedAt,
   Value<SyncState> syncState,
   Value<int> rowid,
 });
@@ -3334,6 +3388,7 @@ typedef $$PatientsTableUpdateCompanionBuilder = PatientsCompanion Function({
   Value<DateTime> consentAt,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
+  Value<DateTime?> archivedAt,
   Value<SyncState> syncState,
   Value<int> rowid,
 });
@@ -3423,6 +3478,11 @@ class $$PatientsTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3522,6 +3582,11 @@ class $$PatientsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get syncState => $composableBuilder(
     column: $table.syncState,
     builder: (column) => ColumnOrderings(column),
@@ -3571,6 +3636,11 @@ class $$PatientsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
 
   GeneratedColumnWithTypeConverter<SyncState, String> get syncState =>
       $composableBuilder(column: $table.syncState, builder: (column) => column);
@@ -3640,6 +3710,7 @@ class $$PatientsTableTableManager
                 Value<DateTime> consentAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
                 Value<SyncState> syncState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PatientsCompanion(
@@ -3654,6 +3725,7 @@ class $$PatientsTableTableManager
                 consentAt: consentAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                archivedAt: archivedAt,
                 syncState: syncState,
                 rowid: rowid,
               ),
@@ -3670,6 +3742,7 @@ class $$PatientsTableTableManager
                 required DateTime consentAt,
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<DateTime?> archivedAt = const Value.absent(),
                 Value<SyncState> syncState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PatientsCompanion.insert(
@@ -3684,6 +3757,7 @@ class $$PatientsTableTableManager
                 consentAt: consentAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                archivedAt: archivedAt,
                 syncState: syncState,
                 rowid: rowid,
               ),

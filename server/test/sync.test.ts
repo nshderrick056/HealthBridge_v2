@@ -132,6 +132,30 @@ describe.skipIf(!url)('sync against Postgres', () => {
     expect(audit.map((a) => a.action)).toEqual(['patient.create', 'patient.update']);
   });
 
+  it('archiving a patient syncs, is audited, comes back in pull, and can be undone', async () => {
+    const p = patient();
+    await push([change(1, 'patient', p)]).expect(200);
+    const at = new Date(now.getTime() + 60_000);
+    await push([change(2, 'patient', { ...p, archived_at: at.toISOString(), updated_at: at.toISOString() })]).expect(200);
+    expect((await db.patients.findUnique({ where: { id: p.id } }))?.archived_at).toEqual(at);
+
+    const pulled = await request(app).get('/sync/pull').set('authorization', token()).expect(200);
+    expect(pulled.body.patients.find((x: { id: string }) => x.id === p.id).archived_at).toBe(at.toISOString());
+
+    // A payload without the field (an older app build) leaves the archive alone.
+    const later = new Date(now.getTime() + 120_000).toISOString();
+    const { archived_at: _unused, ...withoutField } = { ...p, archived_at: null, updated_at: later };
+    await push([change(3, 'patient', withoutField)]).expect(200);
+    expect((await db.patients.findUnique({ where: { id: p.id } }))?.archived_at).toEqual(at);
+
+    const restoredAt = new Date(now.getTime() + 180_000).toISOString();
+    await push([change(4, 'patient', { ...p, archived_at: null, updated_at: restoredAt })]).expect(200);
+    expect((await db.patients.findUnique({ where: { id: p.id } }))?.archived_at).toBeNull();
+
+    const audit = await db.audit_log.findMany({ where: { entity_id: p.id }, orderBy: { id: 'asc' } });
+    expect(audit.map((a) => a.action)).toEqual(['patient.create', 'patient.archive', 'patient.update', 'patient.restore']);
+  });
+
   it('a full record merges into the partial case an SMS created (FR-14)', async () => {
     const p = patient();
     const v = visit(p.id, { is_urgent: true, danger_signs: ['HB'] });

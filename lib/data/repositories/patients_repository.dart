@@ -57,16 +57,26 @@ class PatientsRepository {
     });
   }
 
+  /// The app's "delete": hides the patient everywhere but keeps the record, and syncs like an edit.
+  Future<Patient> archive(Patient p) =>
+      update(p.copyWith(archivedAt: Value(_now())));
+
+  /// Undoes [archive].
+  Future<Patient> restore(Patient p) =>
+      update(p.copyWith(archivedAt: const Value(null)));
+
   Future<Patient?> get(String id) => (_db.select(
     _db.patients,
   )..where((t) => t.id.equals(id))).getSingleOrNull();
 
-  /// Live list for the patients tab; [query] matches name, short ID or village.
+  /// Live list for the patients tab; [query] matches name, short ID or village. Archived patients are left out.
   Stream<List<Patient>> watch({String query = ''}) {
     final q = '%${query.trim()}%';
     return (_db.select(_db.patients)
           ..where(
-            (t) => t.fullName.like(q) | t.shortId.like(q) | t.village.like(q),
+            (t) =>
+                t.archivedAt.isNull() &
+                (t.fullName.like(q) | t.shortId.like(q) | t.village.like(q)),
           )
           ..orderBy([(t) => OrderingTerm.asc(t.fullName)]))
         .watch();
@@ -97,4 +107,5 @@ Map<String, Object?> patientPayload(Patient p) => {
   'consent_at': p.consentAt.toUtc().toIso8601String(),
   'created_at': p.createdAt.toUtc().toIso8601String(),
   'updated_at': p.updatedAt.toUtc().toIso8601String(),
+  'archived_at': p.archivedAt?.toUtc().toIso8601String(),
 };

@@ -7,12 +7,63 @@ import '../../data/providers.dart';
 import '../record/record_visit_screen.dart';
 import '../shell/app_shell.dart';
 import '../view_models.dart';
+import '../../data/db.dart';
 import 'patient_profile_controller.dart';
+import 'register_patient_screen.dart';
 
 class PatientProfileScreen extends ConsumerWidget {
   const PatientProfileScreen({super.key, required this.patientId});
 
   final String patientId;
+
+  /// Asks first, then archives, leaves the profile and offers Undo.
+  Future<void> _archive(
+    BuildContext context,
+    WidgetRef ref,
+    Patient patient,
+  ) async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Archive this patient?'),
+        content: Text(
+          '${patient.fullName} will be hidden from your lists. '
+          'Their visits are kept, and you can undo this straight away.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+    if (sure != true || !context.mounted) return;
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final actions = ref.read(patientActionsProvider);
+    try {
+      final archived = await actions.archive(patient);
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${patient.fullName} archived'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => actions.restore(archived),
+          ),
+        ),
+      );
+    } on Exception {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not archive. Try again.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,6 +88,22 @@ class PatientProfileScreen extends ConsumerWidget {
         elevation: 0,
         foregroundColor: HbColors.textPrimary,
         toolbarHeight: 44,
+        actions: [
+          IconButton(
+            tooltip: 'Edit patient',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RegisterPatientScreen(patient: view.patient),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Archive patient',
+            icon: const Icon(Icons.archive_outlined),
+            onPressed: () => _archive(context, ref, view.patient),
+          ),
+        ],
       ),
       body: PageBody(
         children: [

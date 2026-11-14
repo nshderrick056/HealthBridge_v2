@@ -31,13 +31,11 @@ final urgentRepositoryProvider = Provider(
   (ref) => UrgentRepository(ref.watch(databaseProvider)),
 );
 
-/// Live tables for the list screens and summaries.
-final allPatientsProvider = StreamProvider(
-  (ref) => ref
-      .watch(databaseProvider)
-      .select(ref.watch(databaseProvider).patients)
-      .watch(),
-);
+/// Live tables for the list screens and summaries. Archived patients are left out everywhere.
+final allPatientsProvider = StreamProvider((ref) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.patients)..where((t) => t.archivedAt.isNull())).watch();
+});
 final allVisitsProvider = StreamProvider(
   (ref) => ref
       .watch(databaseProvider)

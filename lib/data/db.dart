@@ -20,6 +20,9 @@ class Patients extends Table {
   DateTimeColumn get consentAt => dateTime()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
+
+  /// Set when the CHW archives the patient (the app's "delete"); the record and visits are kept.
+  DateTimeColumn get archivedAt => dateTime().nullable()();
   TextColumn get syncState =>
       textEnum<SyncState>().withDefault(Constant(SyncState.local.name))();
 
@@ -120,7 +123,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -137,6 +140,9 @@ class AppDatabase extends _$AppDatabase {
             ),
         ]),
       );
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) await m.addColumn(patients, patients.archivedAt);
     },
     beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),
   );

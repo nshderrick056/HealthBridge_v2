@@ -241,6 +241,7 @@ class SyncEngine {
                 consentAt: date(p['consent_at'])!,
                 createdAt: date(p['created_at'])!,
                 updatedAt: updated,
+                archivedAt: Value(date(p['archived_at'])),
                 syncState: const Value(SyncState.synced),
               ),
             );

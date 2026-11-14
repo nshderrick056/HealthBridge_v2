@@ -328,6 +328,98 @@ void main() {
     },
   );
 
+  Future<void> seedPatient() => db
+      .into(db.patients)
+      .insert(
+        PatientsCompanion.insert(
+          id: 'p1',
+          shortId: 'P000001',
+          fullName: 'Uwase Marie',
+          village: 'Nyamata',
+          sex: const Value('F'),
+          ageEstimate: const Value(32),
+          consentAt: DateTime.now(),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+  Future<void> openProfile(WidgetTester tester) async {
+    await pumpShell(tester);
+    await tester.tap(find.text('Patients').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Uwase Marie'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets(
+    'editing a patient saves, queues an upload and shows the change',
+    (tester) async {
+      await seedPatient();
+      await openProfile(tester);
+
+      await tester.tap(find.byTooltip('Edit patient'));
+      await tester.pumpAndSettle();
+      expect(find.text('Edit patient'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Uwase Marie'),
+        'Uwase Marie-Claire',
+      );
+      await tester.enterText(find.widgetWithText(TextFormField, '32'), 'abc');
+      await tester.tap(find.text('Save changes'));
+      await tester.pump();
+      expect(
+        find.text('Enter the age in whole years (0 to 130)'),
+        findsOneWidget,
+      );
+
+      await tester.enterText(find.widgetWithText(TextFormField, 'abc'), '33');
+      await tester.tap(find.text('Save changes'));
+      await settle(tester);
+
+      expect(find.text('Uwase Marie-Claire'), findsOneWidget);
+      final p = (await tester.runAsync(
+        () => db.select(db.patients).getSingle(),
+      ))!;
+      expect(p.fullName, 'Uwase Marie-Claire');
+      expect(p.ageEstimate, 33);
+      expect(p.syncState, SyncState.queued);
+      expect(
+        (await tester.runAsync(() => db.select(db.outbox).get()))!,
+        hasLength(1),
+      );
+      await finish(tester);
+    },
+  );
+
+  testWidgets('archiving asks first, hides the patient and can be undone', (
+    tester,
+  ) async {
+    await seedPatient();
+    await openProfile(tester);
+
+    await tester.tap(find.byTooltip('Archive patient'));
+    await tester.pumpAndSettle();
+    expect(find.text('Archive this patient?'), findsOneWidget);
+    await tester.tap(find.text('Archive'));
+    await settle(tester);
+
+    expect(find.text('Uwase Marie archived'), findsOneWidget);
+    expect(
+      find.text('No patients yet. Register your first patient.'),
+      findsOneWidget,
+    );
+    var p = (await tester.runAsync(() => db.select(db.patients).getSingle()))!;
+    expect(p.archivedAt, isNotNull); // kept, not deleted
+
+    await tester.tap(find.text('Undo'));
+    await settle(tester);
+    p = (await tester.runAsync(() => db.select(db.patients).getSingle()))!;
+    expect(p.archivedAt, isNull);
+    expect(find.text('Uwase Marie'), findsOneWidget);
+    await finish(tester);
+  });
+
   testWidgets('settings are saved to SharedPreferences as they are changed', (
     tester,
   ) async {

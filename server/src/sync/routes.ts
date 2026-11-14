@@ -25,6 +25,8 @@ const patientPayload = z.object({
   consent_at: date,
   created_at: date,
   updated_at: date,
+  // Optional so a phone built before archiving existed leaves the value alone.
+  archived_at: date.nullable().optional(),
 });
 export const visitPayload = z
   .object({
@@ -83,6 +85,7 @@ export async function upsertPatient(tx: Tx, ctx: Ctx, raw: unknown) {
     phone: p.phone,
     consent_at: p.consent_at,
     updated_at: p.updated_at,
+    ...(p.archived_at !== undefined && { archived_at: p.archived_at }),
   };
   const audit = (action: string) =>
     tx.audit_log.create({ data: { actor_id: ctx.chw, action, entity: 'patients', entity_id: p.id } });
@@ -92,7 +95,8 @@ export async function upsertPatient(tx: Tx, ctx: Ctx, raw: unknown) {
     if (existing.chw_id !== ctx.chw) throw new Rejected('not_your_patient');
     if (p.updated_at > existing.updated_at) {
       await tx.patients.update({ where: { id: p.id }, data: fields });
-      await audit('patient.update');
+      const archiving = p.archived_at !== undefined && !p.archived_at !== !existing.archived_at;
+      await audit(archiving ? (p.archived_at ? 'patient.archive' : 'patient.restore') : 'patient.update');
     }
     return;
   }
@@ -241,6 +245,7 @@ export function syncRouter(db: Db) {
         consent_at: iso(p.consent_at),
         created_at: iso(p.created_at),
         updated_at: iso(p.updated_at),
+        archived_at: iso(p.archived_at),
       })),
       alerts: alerts.map((a) => ({
         visit_id: a.visit_id,

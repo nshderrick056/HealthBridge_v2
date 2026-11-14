@@ -99,6 +99,7 @@ model patients {
   consent_at   DateTime  @db.Timestamptz(6)
   created_at   DateTime  @db.Timestamptz(6)
   updated_at   DateTime  @db.Timestamptz(6)
+  archived_at  DateTime? @db.Timestamptz(6) // archived by the CHW; records are kept, never deleted
 
   chw    users    @relation(fields: [chw_id], references: [id])
   visits visits[]
