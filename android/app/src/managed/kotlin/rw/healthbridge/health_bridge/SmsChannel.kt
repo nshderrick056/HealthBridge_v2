@@ -30,7 +30,8 @@ object FlavorChannels {
 private const val PREFS = "hb_sms"
 private const val ACKS = "acks"
 private const val REQUEST = 4242
-private val ACK = Regex("^HB OK ([0-9a-f]{8})$")
+// "HB OK <code> <tag>"; Dart checks the tag against the device key before confirming anything.
+private val ACK = Regex("^HB OK ([0-9a-f]{8} [0-9a-f]{12})$")
 private val PERMISSIONS = arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS)
 
 class SmsChannel : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler,
@@ -121,7 +122,7 @@ class SmsChannel : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
     }
 }
 
-/** Keeps "HB OK <code>" acks, even while the app is closed, until Dart takes them with takeAcks. */
+/** Keeps "HB OK <code> <tag>" acks as "<code> <tag>", even while the app is closed, until Dart takes them with takeAcks. */
 class SmsAckReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val codes = Telephony.Sms.Intents.getMessagesFromIntent(intent)

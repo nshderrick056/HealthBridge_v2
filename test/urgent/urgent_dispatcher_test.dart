@@ -200,11 +200,25 @@ void main() {
       net = Net.down;
       final (_, v) = await urgentVisit();
       await dispatcher.send(v.id);
-      sender.acks = [v.shortCode];
+      sender.acks = ['${v.shortCode} ${await ackTag(key, v.shortCode)}'];
       await dispatcher.applyAcks();
       expect((await dispatchOf(v.id)).state, DispatchState.confirmed);
     },
   );
+
+  test('an ack without the right tag is ignored', () async {
+    net = Net.down;
+    final (_, v) = await urgentVisit();
+    await dispatcher.send(v.id);
+    final otherKey = List<int>.filled(32, 9);
+    sender.acks = [
+      v.shortCode, // unsigned, from anyone
+      '${v.shortCode} 000000000000', // made-up tag
+      '${v.shortCode} ${await ackTag(otherKey, v.shortCode)}', // another device's key
+    ];
+    await dispatcher.applyAcks();
+    expect((await dispatchOf(v.id)).state, DispatchState.sentSms);
+  });
 
   test('Resend sends again and restarts the 10-minute wait', () async {
     net = Net.down;

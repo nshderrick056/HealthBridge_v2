@@ -210,3 +210,17 @@ Future<OpenedSms> openSms(List<int> key, List<String> texts) async {
     throw const CodecException('authentication failed');
   }
 }
+
+/// The tag the server puts on an acknowledgement, `HB OK <code> <tag>`: the first 12 hex of
+/// HMAC-SHA256 over "HB OK <code>" with the device's SMS key. Only a reply carrying the right tag
+/// confirms an alert, so a stranger who learns a short code cannot fake one.
+Future<String> ackTag(List<int> key, String shortCode) async {
+  final mac = await Hmac.sha256().calculateMac(
+    utf8.encode('HB OK $shortCode'),
+    secretKey: SecretKey(key),
+  );
+  return mac.bytes
+      .take(6)
+      .map((b) => b.toRadixString(16).padLeft(2, '0'))
+      .join();
+}

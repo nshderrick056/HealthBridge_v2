@@ -73,6 +73,16 @@ void main() {
     });
   });
 
+  // Same vector as server/test/sms-codec.test.ts, so the server's tag and this check agree.
+  test(
+    'ack tag is the first 12 hex of HMAC-SHA256 with the device key',
+    () async {
+      final key = List<int>.generate(32, (i) => i);
+      expect(await ackTag(key, '7f3c9a21'), '8390abb11a59');
+      expect(await ackTag(key, '7f3c9a22'), isNot('8390abb11a59'));
+    },
+  );
+
   group('codec', () {
     final plaintext = (vectors['valid'] as List).first['plaintext'] as String;
 

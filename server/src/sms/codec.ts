@@ -6,9 +6,18 @@
 //
 // AES-256-GCM with the header "HB1 <device>" as associated data, so a body cannot be re-sent under
 // another device ID.
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 
 export const SMS_MAX = 160;
+
+/**
+ * The tag on an acknowledgement: `HB OK <code> <tag>`, the first 12 hex of HMAC-SHA256 over
+ * "HB OK <code>" with the device's SMS key. The phone checks it, so a reply from anyone without
+ * the key cannot confirm an alert.
+ */
+export function ackTag(key: Buffer, shortCode: string): string {
+  return createHmac('sha256', key).update(`HB OK ${shortCode}`).digest('hex').slice(0, 12);
+}
 const VERSION = 'HB1';
 const NONCE_LEN = 12;
 const TAG_LEN = 16;

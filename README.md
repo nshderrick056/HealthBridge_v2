@@ -59,8 +59,9 @@ real gateway number, 20 visits through a reboot, and background sync with the ap
   until a clinician confirms them.
 - **Kinyarwanda (FR-17):** app text is English and hard-coded in the screens; it needs translation files and a
   native speaker. Danger-sign labels in the database are marked `[RW pending]`.
-- **Gaps:** the managed build accepts an `HB OK <code>` reply from any sender; the 8-character code is the only
-  check.
+- **Acks:** the server's reply is `HB OK <code> <tag>`, the tag being HMAC-SHA256 with the device's SMS key, and
+  the managed build ignores a reply whose tag does not match. Replay of a genuine reply is harmless (it only
+  confirms the same alert). Not yet checked on a phone with a live gateway.
 - **Local only:** `web/` (browser preview) and `windows/` are not committed.
 - **Before the Play upload:** workmanager adds foreground-service, wake-lock, boot and notification permissions
   to both builds; Play may ask for a foreground-service justification.

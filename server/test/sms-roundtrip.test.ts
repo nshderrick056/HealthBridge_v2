@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { signAccess } from '../src/auth/tokens';
 import type { Db } from '../src/db';
-import { encodePlaintext, seal, type AlertFields } from '../src/sms/codec';
+import { ackTag, encodePlaintext, seal, type AlertFields } from '../src/sms/codec';
 import { unwrapKey, wrapKey } from '../src/sms/keystore';
 import { parsePhoneTime } from '../src/sms/webhook';
 
@@ -178,7 +178,7 @@ describe('POST /webhooks/sms', () => {
     });
     expect(t.visit_danger_signs.map((s) => s.code)).toEqual(['HB', 'CV']);
     expect(t.patients[0]).toMatchObject({ short_id: 'P0412', chw_id: CHW });
-    expect(sent).toEqual([{ to: PHONE, text: 'HB OK 7f3c9a21' }]);
+    expect(sent).toEqual([{ to: PHONE, text: `HB OK 7f3c9a21 ${ackTag(key, '7f3c9a21')}` }]);
   });
 
   it('keeps the alert when the ack cannot be sent', async () => {

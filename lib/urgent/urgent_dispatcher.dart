@@ -109,10 +109,19 @@ class UrgentDispatcher {
   Future<String?> acknowledge(String shortCode) =>
       _repo.confirmShortCode(shortCode);
 
-  /// Drains the acks the managed build's receiver collected (also while the app was closed).
+  /// Drains the acks the managed build's receiver collected (also while the app was closed). Each is
+  /// "<code> <tag>"; one whose tag does not match this device's key is ignored, so only the server,
+  /// which holds the same key, can confirm an alert.
   Future<void> applyAcks() async {
-    for (final code in await sender.takeAcks()) {
-      await acknowledge(code);
+    final acks = await sender.takeAcks();
+    if (acks.isEmpty) return;
+    final device = await engine.savedDevice();
+    if (device == null) return;
+    for (final ack in acks) {
+      final parts = ack.split(' ');
+      if (parts.length != 2) continue; // unsigned or malformed
+      if (parts[1] != await ackTag(device.smsKey, parts[0])) continue;
+      await acknowledge(parts[0]);
     }
   }
 

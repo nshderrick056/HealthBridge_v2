@@ -5,7 +5,7 @@ import type { Db } from '../db';
 import { isUniqueViolation } from '../devices/routes';
 import { env } from '../env';
 import { HttpError } from '../http';
-import { CodecError, decodePlaintext, openSms, parseSms, type AlertFields } from './codec';
+import { CodecError, ackTag, decodePlaintext, openSms, parseSms, type AlertFields } from './codec';
 import type { SmsSender } from './gateway';
 import { unwrapKey } from './keystore';
 
@@ -178,7 +178,7 @@ export function smsRouter(db: Db, sender: SmsSender) {
     }
 
     // The alert is already stored; a failed acknowledgement is logged, not an error for the gateway.
-    const ackText = `HB OK ${fields.shortCode}`;
+    const ackText = `HB OK ${fields.shortCode} ${ackTag(key, fields.shortCode)}`;
     const out = { direction: 'out', phone: from, device_id: device.id, raw_text: ackText, visit_id: visitId };
     try {
       const { gatewayId } = await sender.send(from, ackText);
