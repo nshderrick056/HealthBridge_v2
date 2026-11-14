@@ -49,7 +49,7 @@ ThemeData buildTheme() {
   );
   return ThemeData(
     useMaterial3: true,
-    fontFamily: 'Inter', // falls back to the platform font until the Inter files are bundled
+    fontFamily: 'Inter', // bundled in assets/fonts
     colorScheme: scheme,
     scaffoldBackgroundColor: HbColors.surface,
     dividerColor: HbColors.divider,

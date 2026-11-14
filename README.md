@@ -22,20 +22,36 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
 | 0 | Bootstrap, flavours, CI | done |
 | 1 | Backend foundations: schema, seed, login, refresh | done |
 | 2 | SMS codec (TS and Dart) | done |
-| 3 | SMS round trip: `POST /devices/register`, `POST /webhooks/sms`, `/webhooks/sms/delivery`, ack SMS | done (tested against fakes; not yet run against the Africa's Talking sandbox) |
+| 3 | SMS round trip: `POST /devices/register`, `POST /webhooks/sms`, `/webhooks/sms/delivery`, ack SMS | done; run against the Africa's Talking sandbox (see Phone test below) |
 | 4 | Flutter data layer: encrypted drift DB, repositories, outbox, providers | done (see [lib/data/README.md](lib/data/README.md)) |
 | UI | CHW screens from Figma: login, home, patients, patient profile, record/review visit, urgent, saved, sync status (plus register-patient, alerts and profile tabs, which Figma lacks) | done; the two supervisor frames go to the web dashboard (slice 7) |
-| 5 | Sync engine: `/sync/push` (idempotent, merges SMS partial cases), `/sync/pull`, app outbox drain with back-off (`lib/sync/`) | done: while open (start, resume, connectivity, every minute) and on Android with the app closed (workmanager every 30 min once online, `lib/sync/background_sync.dart`); not yet tried on a phone |
-| 6 | Urgent pathway: `POST /alerts` (internet, 10 s), else the sealed SMS through `UrgentSender` (composer in `store`, direct send + ack receiver in `managed`); unconfirmed after 10 min with Resend and Call (`lib/urgent/`) | done; the real-SIM run with the managed build is still to do |
+| 5 | Sync engine: `/sync/push` (idempotent, merges SMS partial cases), `/sync/pull`, app outbox drain with back-off (`lib/sync/`) | done: while open (start, resume, connectivity, every minute) and on Android with the app closed (workmanager every 30 min once online, `lib/sync/background_sync.dart`); the SMS case merging into the full visit on reconnect is confirmed on a phone, the 20-visit reboot and closed-app runs are not |
+| 6 | Urgent pathway: `POST /alerts` (internet, 10 s), else the sealed SMS through `UrgentSender` (composer in `store`, direct send + ack receiver in `managed`); unconfirmed after 10 min with Resend and Call (`lib/urgent/`) | done; the managed build's direct send is confirmed on a real SIM |
 | 7 | Supervisor dashboard: `GET /alerts`, `GET`/`PATCH /alerts/:id`, `GET /chws` (scoped to the supervisor's health centre); `dashboard/` with login, 10 s alert inbox, case detail with status actions, CHW list | done (not yet deployed); Escalate and Follow-up also text the CHW the case code |
 | 8 | Release: Vercel entry (`server/api/`), signed builds and migrations on a `v*` tag (`.github/workflows/release.yml`), admin endpoints for real accounts | code done; needs your Vercel/Neon accounts, keystore and GitHub secrets (see Release below) |
 
+## Phone test (1 November 2026)
+
+Managed build on a Samsung (Android, real SIM), API on a laptop behind a Cloudflare quick tunnel, Africa's
+Talking sandbox, supervisor dashboard on localhost.
+
+| Step | Result |
+| --- | --- |
+| Urgent visit with Wi-Fi and mobile data off | The internet attempt failed and the app sent the sealed `HB1` SMS by itself to a second phone. The first send failed at the radio ("Failed to send", cause unknown); Resend went through. |
+| SMS into the server | Copied from the second phone into the sandbox simulator (the sandbox cannot receive real SMS). The server decrypted it, created the case (channel SMS, patient "(awaiting sync)") and the sandbox accepted the `HB OK <code>` reply. |
+| Dashboard | The case appeared in the inbox. |
+| Data back on | The phone synced within a minute; the full visit replaced the partial one (one visit, real patient name, no stub patient left). |
+| Escalate | The "case … has been escalated" SMS was sent to the CHW's number. |
+
+Not covered: the phone reading the `HB OK` reply by itself (the reply went to the simulator, not the phone), a
+real gateway number, 20 visits through a reboot, and background sync with the app closed.
+
 ## Still to do
 
-- **On a phone with a SIM:** the managed build sending an urgent SMS in airplane mode; 20 visits recorded
-  offline, app killed and phone rebooted, each syncing exactly once; background sync firing with the app closed.
-- **Africa's Talking sandbox:** a real inbound SMS and `HB OK` reply (needs `AT_*` in `server/.env` and the app
-  built with `SMS_GATEWAY_NUMBER`).
+- **On a phone:** 20 visits recorded offline, app killed and phone rebooted, each syncing exactly once;
+  background sync firing with the app closed; the managed build confirming from a real `HB OK` reply.
+- **SMS gateway:** the sandbox only talks to its simulator, so a hands-free test needs a live Africa's Talking
+  number (or a phone acting as a gateway).
 - **Release:** create the accounts, keystore and secrets in the Release section below, then push a `v*` tag.
   After that, clean installs of both builds against the deployed API, checking an alert reaches the dashboard
   within 10 s.
@@ -43,7 +59,6 @@ build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
   until a clinician confirms them.
 - **Kinyarwanda (FR-17):** app text is English and hard-coded in the screens; it needs translation files and a
   native speaker. Danger-sign labels in the database are marked `[RW pending]`.
-- **Font:** Inter (the Figma typeface) is not bundled yet; the app uses the system font.
 - **Gaps:** the managed build accepts an `HB OK <code>` reply from any sender; the 8-character code is the only
   check.
 - **Local only:** `web/` (browser preview) and `windows/` are not committed.
