@@ -142,12 +142,12 @@ class SyncEngine {
                             t.entityId.equals(row.entityId),
                       ))
                       .get();
-              if (more.isEmpty) await _setState(row, SyncState.synced);
+              if (more.isEmpty) await _markSync(row, SyncState.synced);
               pushed++;
             } else {
               // Refused (or not answered): show it as failed and retry on the back-off schedule.
               await _backOff(row, r?['error'] as String? ?? 'no result');
-              await _setState(row, SyncState.failed);
+              await _markSync(row, SyncState.failed);
               rejected++;
             }
           }
@@ -188,7 +188,7 @@ class SyncEngine {
     );
   }
 
-  Future<void> _setState(OutboxData row, SyncState state) =>
+  Future<void> _markSync(OutboxData row, SyncState state) =>
       switch (row.entity) {
         'patient' =>
           (db.update(db.patients)..where((t) => t.id.equals(row.entityId)))

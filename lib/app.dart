@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/settings/settings.dart';
 import 'core/theme/app_theme.dart';
 import 'data/providers.dart';
 import 'features/auth/login_screen.dart';
@@ -26,10 +27,21 @@ class _HealthBridgeAppState extends ConsumerState<HealthBridgeApp> {
   @override
   Widget build(BuildContext context) {
     final signedIn = ref.watch(sessionProvider) != null;
+    final textScale = ref.watch(settingsProvider).textSize.scale;
     return MaterialApp(
       title: 'HealthBridge',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
+      // The chosen text size multiplies the phone's own font size setting.
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler: TextScaler.linear(mq.textScaler.scale(1) * textScale),
+          ),
+          child: child!,
+        );
+      },
       home: FutureBuilder<void>(
         future: _restore,
         builder: (context, snap) {

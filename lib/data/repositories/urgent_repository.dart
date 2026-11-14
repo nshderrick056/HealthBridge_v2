@@ -33,7 +33,7 @@ class UrgentRepository {
   )..where((t) => t.visitId.equals(visitId))).watchSingleOrNull();
 
   /// `sentAt` is stamped when the SMS leaves the phone, which starts the 10-minute wait for the ack.
-  Future<void> setState(
+  Future<void> updateState(
     String visitId,
     DispatchState state, {
     String? channel,
@@ -75,7 +75,7 @@ class UrgentRepository {
         for (final v in visits) {
           final d = await get(v.id);
           if (d != null && d.state != DispatchState.confirmed) {
-            await setState(v.id, DispatchState.confirmed);
+            await updateState(v.id, DispatchState.confirmed);
             return v.id;
           }
         }

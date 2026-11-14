@@ -10,9 +10,11 @@ import '../../data/providers.dart';
 import '../patients/patients_screen.dart';
 import '../shell/app_shell.dart';
 import '../view_models.dart';
+import 'record_visit_controller.dart';
 import 'review_visit_screen.dart';
 import 'visit_form.dart';
 
+/// Stateful only to own the text controllers; the form lives in [RecordVisitController].
 class RecordVisitScreen extends ConsumerStatefulWidget {
   const RecordVisitScreen({super.key, this.patientId});
 
@@ -23,19 +25,13 @@ class RecordVisitScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
-  String? _patientId;
-  VisitForm? _form;
-  List<DangerSign> _signs = const [];
   final _symptoms = TextEditingController();
   final _temperature = TextEditingController();
   final _notes = TextEditingController();
   final _key = GlobalKey<FormState>();
 
-  @override
-  void initState() {
-    super.initState();
-    _patientId = widget.patientId;
-  }
+  RecordVisitController get _controller =>
+      ref.read(recordVisitProvider(widget.patientId).notifier);
 
   @override
   void dispose() {
@@ -45,47 +41,27 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
     super.dispose();
   }
 
-  String get _draftKey => 'visit.record.$_patientId';
-
-  var _opening = false;
-
   Future<void> _open(Patient p) async {
-    // build() and the picker can both ask; one form per screen.
-    if (_opening) return;
-    _opening = true;
-    final form = VisitForm(patient: p);
-    final draft = await ref
-        .read(draftsRepositoryProvider)
-        .load('visit.record.${p.id}');
-    if (draft != null) {
-      form.restore(draft); // half-filled forms survive a crash or app switch
-    }
+    final form = await _controller.open(p);
+    if (form == null || !mounted) return;
     _symptoms.text = form.symptoms;
     _temperature.text = form.temperature?.toString() ?? '';
     _notes.text = form.notes;
-    await _loadSigns(form.type);
-    if (mounted) setState(() => _form = form);
   }
 
-  Future<void> _loadSigns(VisitType t) async {
-    final signs = await ref.read(dangerSignsRepositoryProvider).forType(t);
-    if (mounted) setState(() => _signs = signs);
-  }
+  void _save() => _controller.saveDraft(
+    symptoms: _symptoms.text,
+    temperature: _temperature.text,
+    notes: _notes.text,
+  );
 
-  void _save() {
-    final f = _form!;
-    f.symptoms = _symptoms.text;
-    f.temperature = double.tryParse(_temperature.text.trim());
-    f.notes = _notes.text;
-    ref.read(draftsRepositoryProvider).save(_draftKey, f.toDraft());
-  }
-
-  void _review() {
+  void _review(VisitForm form) {
     if (!_key.currentState!.validate()) return;
     _save();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ReviewVisitScreen(form: _form!, draftKey: _draftKey),
+        builder: (_) =>
+            ReviewVisitScreen(form: form, draftKey: _controller.draftKey),
       ),
     );
   }
@@ -95,20 +71,21 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
     final patients = ref.watch(allPatientsProvider).value ?? const [];
     final visits = ref.watch(allVisitsProvider).value ?? const <Visit>[];
     final online = ref.watch(isOnlineProvider);
-    final id = _patientId;
-    if (id != null && _form == null) {
+    final state = ref.watch(recordVisitProvider(widget.patientId));
+    final id = state.patientId;
+    if (id != null && state.form == null) {
       final p = patients.where((p) => p.id == id);
       if (p.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _open(p.first));
       }
     }
-    final form = _form;
+    final form = state.form;
 
     return Scaffold(
       bottomNavigationBar: const SubPageNav(current: 2),
       body: form == null
           ? _picker(patients, visits, online)
-          : _formBody(form, visits, online),
+          : _formBody(form, state.signs, visits, online),
     );
   }
 
@@ -135,15 +112,17 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
               status: _view(p, visits).status,
               village: p.village,
               when: 'Select',
-              onTap: () {
-                setState(() => _patientId = p.id);
-                _open(p);
-              },
+              onTap: () => _open(p),
             ),
         ],
       );
 
-  Widget _formBody(VisitForm f, List<Visit> visits, bool online) {
+  Widget _formBody(
+    VisitForm f,
+    List<DangerSign> signs,
+    List<Visit> visits,
+    bool online,
+  ) {
     final view = _view(f.patient, visits);
     return Form(
       key: _key,
@@ -178,11 +157,7 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
                       label: visitTypeLabel(t),
                       selected: f.type == t,
                       onTap: () {
-                        setState(() {
-                          f.type = t;
-                          f.signs.clear();
-                        });
-                        _loadSigns(t);
+                        _controller.setType(t);
                         _save();
                       },
                     ),
@@ -256,17 +231,17 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
                       ChoiceChipPill(
                         label: c,
                         selected: f.condition == c,
-                        onTap: () => setState(() {
-                          f.condition = c;
+                        onTap: () {
+                          _controller.setCondition(c);
                           _save();
-                        }),
+                        },
                       ),
                   ],
                 ),
               ],
             ),
           ),
-          if (_signs.isNotEmpty)
+          if (signs.isNotEmpty)
             HbCard(
               color: f.signs.isEmpty ? HbColors.white : HbColors.redTint,
               padding: const EdgeInsets.all(12),
@@ -279,7 +254,7 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
                     'Tick any that apply. Any danger sign makes this visit urgent.',
                     style: HbText.bodySmall,
                   ),
-                  for (final s in _signs)
+                  for (final s in signs)
                     Material(
                       type: MaterialType.transparency,
                       child: CheckboxListTile(
@@ -288,12 +263,10 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
                         controlAffinity: ListTileControlAffinity.leading,
                         title: Text(s.labelEn, style: HbText.bodyMedium),
                         value: f.signs.contains(s.code),
-                        onChanged: (v) => setState(() {
-                          v == true
-                              ? f.signs.add(s.code)
-                              : f.signs.remove(s.code);
+                        onChanged: (v) {
+                          _controller.setSign(s.code, v == true);
                           _save();
-                        }),
+                        },
                       ),
                     ),
                 ],
@@ -308,7 +281,7 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
           HbButton.primary(
             'Review visit',
             icon: Icons.add_circle_outline,
-            onPressed: _review,
+            onPressed: () => _review(f),
           ),
         ],
       ),

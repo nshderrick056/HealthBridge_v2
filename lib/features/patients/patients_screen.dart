@@ -4,43 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/providers.dart';
-import '../view_models.dart';
 import 'patient_profile_screen.dart';
+import 'patients_controller.dart';
 import 'register_patient_screen.dart';
 
-enum _Filter { all, followUp, urgent }
-
-class PatientsScreen extends ConsumerStatefulWidget {
+class PatientsScreen extends ConsumerWidget {
   const PatientsScreen({super.key});
 
   @override
-  ConsumerState<PatientsScreen> createState() => _PatientsScreenState();
-}
-
-class _PatientsScreenState extends ConsumerState<PatientsScreen> {
-  var _filter = _Filter.all;
-  var _query = '';
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final patients = ref.watch(allPatientsProvider).value ?? const [];
-    final visits = ref.watch(allVisitsProvider).value ?? const [];
-    final q = _query.trim().toLowerCase();
-    final views =
-        buildPatientViews(patients, visits).where((v) {
-            final matches =
-                q.isEmpty ||
-                v.patient.fullName.toLowerCase().contains(q) ||
-                v.patient.village.toLowerCase().contains(q) ||
-                v.patient.shortId.toLowerCase().contains(q);
-            final ok = switch (_filter) {
-              _Filter.all => true,
-              _Filter.followUp => v.status == StatusKind.followUp,
-              _Filter.urgent => v.status == StatusKind.urgent,
-            };
-            return matches && ok;
-          }).toList()
-          ..sort((a, b) => a.patient.fullName.compareTo(b.patient.fullName));
+    final views = ref.watch(visiblePatientsProvider);
+    final query = ref.watch(patientsQueryProvider);
+    final controller = ref.read(patientsQueryProvider.notifier);
 
     return PageBody(
       children: [
@@ -50,7 +26,7 @@ class _PatientsScreenState extends ConsumerState<PatientsScreen> {
               '${patients.length} ${patients.length == 1 ? 'person' : 'people'} in your care',
         ),
         TextField(
-          onChanged: (v) => setState(() => _query = v),
+          onChanged: controller.search,
           style: HbText.bodyMedium,
           decoration: InputDecoration(
             hintText: 'Search by name or village',
@@ -80,14 +56,14 @@ class _PatientsScreenState extends ConsumerState<PatientsScreen> {
           spacing: 8,
           children: [
             for (final (f, label) in const [
-              (_Filter.all, 'All'),
-              (_Filter.followUp, 'Follow-up due'),
-              (_Filter.urgent, 'Urgent'),
+              (PatientFilter.all, 'All'),
+              (PatientFilter.followUp, 'Follow-up due'),
+              (PatientFilter.urgent, 'Urgent'),
             ])
               ChoiceChipPill(
                 label: label,
-                selected: _filter == f,
-                onTap: () => setState(() => _filter = f),
+                selected: query.filter == f,
+                onTap: () => controller.filterBy(f),
               ),
           ],
         ),

@@ -33,18 +33,21 @@ void main() {
       expect(uri.queryParameters['body'], body);
     });
 
-    test('opens the SMS app once per part, the second after the CHW is back', () async {
-      final events = <String>[];
-      final sender = ComposerSender(
-        launch: (u) async {
-          events.add('open ${u.queryParameters['body']}');
-          return true;
-        },
-        backInApp: () async => events.add('back'),
-      );
-      await sender.send('+250780000100', ['part 1', 'part 2']);
-      expect(events, ['open part 1', 'back', 'open part 2']);
-    });
+    test(
+      'opens the SMS app once per part, the second after the CHW is back',
+      () async {
+        final events = <String>[];
+        final sender = ComposerSender(
+          launch: (u) async {
+            events.add('open ${u.queryParameters['body']}');
+            return true;
+          },
+          backInApp: () async => events.add('back'),
+        );
+        await sender.send('+250780000100', ['part 1', 'part 2']);
+        expect(events, ['open part 1', 'back', 'open part 2']);
+      },
+    );
 
     test('fails when no SMS app can open the link', () async {
       final sender = ComposerSender(launch: (_) async => false);
@@ -99,18 +102,21 @@ void main() {
       expect(opened.single.queryParameters['body'], 'a');
     });
 
-    test('a radio failure is an error, and so is a missing gateway number', () async {
-      sendError = PlatformException(code: 'not_sent');
-      final sender = DirectSmsSender(channel: channel);
-      await expectLater(
-        sender.send('+250780000100', ['a']),
-        throwsA(isA<PlatformException>()),
-      );
-      await expectLater(
-        sender.send('', ['a']),
-        throwsA(isA<UrgentSendException>()),
-      );
-    });
+    test(
+      'a radio failure is an error, and so is a missing gateway number',
+      () async {
+        sendError = PlatformException(code: 'not_sent');
+        final sender = DirectSmsSender(channel: channel);
+        await expectLater(
+          sender.send('+250780000100', ['a']),
+          throwsA(isA<PlatformException>()),
+        );
+        await expectLater(
+          sender.send('', ['a']),
+          throwsA(isA<UrgentSendException>()),
+        );
+      },
+    );
 
     test('takes the acks the receiver collected', () async {
       expect(await DirectSmsSender(channel: channel).takeAcks(), ['7f3c9a21']);

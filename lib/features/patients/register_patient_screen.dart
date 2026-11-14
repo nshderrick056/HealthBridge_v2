@@ -1,15 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
-import '../../data/providers.dart';
-import '../../sync/sync_service.dart';
 import 'patients_screen.dart';
+import 'register_patient_controller.dart';
 
 /// Not in the Figma file (it only has the "Register patient" button); built from the same components.
+/// Stateful only to own the text controllers; the choices live in [RegisterPatientController].
 class RegisterPatientScreen extends ConsumerStatefulWidget {
   const RegisterPatientScreen({super.key});
 
@@ -24,8 +22,6 @@ class _RegisterPatientScreenState extends ConsumerState<RegisterPatientScreen> {
   final _village = TextEditingController();
   final _age = TextEditingController();
   final _phone = TextEditingController();
-  String? _sex;
-  bool _consent = false;
 
   @override
   void dispose() {
@@ -39,25 +35,37 @@ class _RegisterPatientScreenState extends ConsumerState<RegisterPatientScreen> {
       (v == null || v.trim().isEmpty) ? 'Required' : null;
 
   Future<void> _save() async {
-    if (!_form.currentState!.validate() || !_consent) {
-      setState(() {});
+    if (!_form.currentState!.validate()) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(registerPatientProvider.notifier)
+          .save(
+            fullName: _name.text,
+            village: _village.text,
+            age: _age.text,
+            phone: _phone.text,
+          );
+    } on Exception {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not save the patient. Try again.')),
+      );
       return;
     }
-    await ref
-        .read(patientsRepositoryProvider)
-        .create(
-          fullName: _name.text.trim(),
-          village: _village.text.trim(),
-          sex: _sex,
-          ageEstimate: int.tryParse(_age.text.trim()),
-          phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
-        );
-    unawaited(ref.read(syncNowProvider)());
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final choices = ref.watch(registerPatientProvider);
+    final controller = ref.read(registerPatientProvider.notifier);
+    return _layout(choices, controller);
+  }
+
+  Widget _layout(
+    RegisterPatientState choices,
+    RegisterPatientController controller,
+  ) => Scaffold(
     appBar: AppBar(
       backgroundColor: HbColors.surface,
       elevation: 0,
@@ -95,13 +103,13 @@ class _RegisterPatientScreenState extends ConsumerState<RegisterPatientScreen> {
               children: [
                 ChoiceChipPill(
                   label: 'Female',
-                  selected: _sex == 'F',
-                  onTap: () => setState(() => _sex = 'F'),
+                  selected: choices.sex == 'F',
+                  onTap: () => controller.setSex('F'),
                 ),
                 ChoiceChipPill(
                   label: 'Male',
-                  selected: _sex == 'M',
-                  onTap: () => setState(() => _sex = 'M'),
+                  selected: choices.sex == 'M',
+                  onTap: () => controller.setSex('M'),
                 ),
               ],
             ),
@@ -121,12 +129,12 @@ class _RegisterPatientScreenState extends ConsumerState<RegisterPatientScreen> {
             ),
             const SizedBox(height: 14),
             HbCard(
-              onTap: () => setState(() => _consent = !_consent),
+              onTap: () => controller.setConsent(!choices.consent),
               child: Row(
                 children: [
                   Checkbox(
-                    value: _consent,
-                    onChanged: (v) => setState(() => _consent = v ?? false),
+                    value: choices.consent,
+                    onChanged: (v) => controller.setConsent(v ?? false),
                   ),
                   Expanded(
                     child: Text(
@@ -142,7 +150,7 @@ class _RegisterPatientScreenState extends ConsumerState<RegisterPatientScreen> {
             const SizedBox(height: 18),
             HbButton.primary(
               'Save patient',
-              onPressed: _consent ? _save : null,
+              onPressed: choices.consent ? _save : null,
             ),
           ],
         ),

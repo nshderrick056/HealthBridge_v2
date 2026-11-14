@@ -1,19 +1,17 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/providers.dart';
-import '../../sync/sync_service.dart';
 import '../shell/app_shell.dart';
 import '../view_models.dart';
+import 'review_visit_controller.dart';
 import 'urgent_detected_screen.dart';
 import 'record_saved_screen.dart';
 import 'visit_form.dart';
 
-class ReviewVisitScreen extends ConsumerStatefulWidget {
+class ReviewVisitScreen extends ConsumerWidget {
   const ReviewVisitScreen({
     super.key,
     required this.form,
@@ -23,42 +21,31 @@ class ReviewVisitScreen extends ConsumerStatefulWidget {
   final VisitForm form;
   final String draftKey;
 
-  @override
-  ConsumerState<ReviewVisitScreen> createState() => _ReviewVisitScreenState();
-}
-
-class _ReviewVisitScreenState extends ConsumerState<ReviewVisitScreen> {
-  var _busy = false;
-
-  Future<void> _submit() async {
-    setState(() => _busy = true);
-    final f = widget.form;
-    final visit = await ref
-        .read(visitsRepositoryProvider)
-        .record(
-          patientId: f.patient.id,
-          type: f.type,
-          answers: f.answers,
-          signCodes: f.signs.toList(),
-          notes: f.notes.trim().isEmpty ? null : f.notes.trim(),
-        );
-    await ref.read(draftsRepositoryProvider).delete(widget.draftKey);
-    unawaited(
-      ref.read(syncNowProvider)(),
-    ); // upload now if online; the outbox keeps it otherwise
-    if (!mounted) return;
-    final next = visit.isUrgent
-        ? UrgentDetectedScreen(visitId: visit.id)
-        : RecordSavedScreen(visitId: visit.id);
-    await Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(builder: (_) => next),
-      (r) => r.isFirst,
-    );
+  Future<void> _submit(BuildContext context, WidgetRef ref) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final visit = await ref
+          .read(submitVisitProvider.notifier)
+          .submit(form, draftKey);
+      final next = visit.isUrgent
+          ? UrgentDetectedScreen(visitId: visit.id)
+          : RecordSavedScreen(visitId: visit.id);
+      await navigator.pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => next),
+        (r) => r.isFirst,
+      );
+    } on Exception {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not save the visit. Try again.')),
+      );
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final f = widget.form;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final f = form;
+    final busy = ref.watch(submitVisitProvider);
     final online = ref.watch(isOnlineProvider);
     final labels =
         ref.watch(dangerSignLabelsProvider).value ?? const <String, String>{};
@@ -186,9 +173,9 @@ class _ReviewVisitScreenState extends ConsumerState<ReviewVisitScreen> {
           Column(
             children: [
               HbButton.primary(
-                _busy ? 'Saving...' : 'Submit visit',
+                busy ? 'Saving...' : 'Submit visit',
                 icon: Icons.add_circle_outline,
-                onPressed: _busy ? null : _submit,
+                onPressed: busy ? null : () => _submit(context, ref),
               ),
               const SizedBox(height: 8),
               HbButton.secondary(

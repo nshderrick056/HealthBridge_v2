@@ -131,16 +131,12 @@ class SmsAlertSentScreen extends ConsumerWidget {
                   valueColor: HbColors.red,
                 ),
                 const SizedBox(height: 8),
-                DetailRow(
-                  'Alert status',
-                  switch (state) {
-                    DispatchState.confirmed => 'Confirmed',
-                    DispatchState.sentSms => 'SMS sent',
-                    DispatchState.unconfirmed => 'Not confirmed',
-                    DispatchState.sending => 'Sending',
-                  },
-                  valueColor: sent ? HbColors.green : HbColors.warning,
-                ),
+                DetailRow('Alert status', switch (state) {
+                  DispatchState.confirmed => 'Confirmed',
+                  DispatchState.sentSms => 'SMS sent',
+                  DispatchState.unconfirmed => 'Not confirmed',
+                  DispatchState.sending => 'Sending',
+                }, valueColor: sent ? HbColors.green : HbColors.warning),
               ],
             ),
           ),

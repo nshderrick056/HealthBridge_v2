@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/auth_service.dart';
+import '../../core/settings/settings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
-import '../../data/providers.dart';
+import 'login_controller.dart';
 
+/// Stateful only to own the text controllers; the busy and error state live in [LoginController].
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -14,11 +15,11 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _id = TextEditingController();
+  late final _id = TextEditingController(
+    text: ref.read(settingsProvider).savedLoginId,
+  );
   final _secret = TextEditingController();
   final _form = GlobalKey<FormState>();
-  String? _error;
-  bool _busy = false;
 
   @override
   void dispose() {
@@ -30,26 +31,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _required(String? v) =>
       (v == null || v.trim().isEmpty) ? 'Required' : null;
 
-  Future<void> _submit() async {
+  void _submit() {
     if (!_form.currentState!.validate()) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final session = await ref
-          .read(authServiceProvider)
-          .login(_id.text, _secret.text);
-      ref.read(sessionProvider.notifier).state = session;
-    } on AuthException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    ref.read(loginControllerProvider.notifier).submit(_id.text, _secret.text);
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final login = ref.watch(loginControllerProvider);
+    return _layout(login.busy, login.error);
+  }
+
+  Widget _layout(bool busy, String? error) => Scaffold(
     body: SafeArea(
       child: Column(
         children: [
@@ -133,17 +126,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       obscure: true,
                       validator: _required,
                     ),
-                    if (_error != null) ...[
+                    if (error != null) ...[
                       const SizedBox(height: 12),
                       Text(
-                        _error!,
+                        error,
                         style: HbText.bodySmall.copyWith(color: HbColors.red),
                       ),
                     ],
                     const SizedBox(height: 22),
                     HbButton.primary(
-                      _busy ? 'Logging in...' : 'Log in',
-                      onPressed: _busy ? null : _submit,
+                      busy ? 'Logging in...' : 'Log in',
+                      onPressed: busy ? null : _submit,
                     ),
                     const SizedBox(height: 120),
                     HbCard(

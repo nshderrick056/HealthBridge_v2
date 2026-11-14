@@ -7,32 +7,28 @@ import '../../data/providers.dart';
 import '../record/record_visit_screen.dart';
 import '../shell/app_shell.dart';
 import '../view_models.dart';
+import 'patient_profile_controller.dart';
 
-class PatientProfileScreen extends ConsumerStatefulWidget {
+class PatientProfileScreen extends ConsumerWidget {
   const PatientProfileScreen({super.key, required this.patientId});
 
   final String patientId;
 
   @override
-  ConsumerState<PatientProfileScreen> createState() =>
-      _PatientProfileScreenState();
-}
-
-class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
-  var _showAll = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final patients = ref.watch(allPatientsProvider).value ?? const [];
     final visits = ref.watch(allVisitsProvider).value ?? const [];
-    final found = patients.where((p) => p.id == widget.patientId);
+    final showAll = ref.watch(historyExpandedProvider(patientId));
+    void toggleHistory() =>
+        ref.read(historyExpandedProvider(patientId).notifier).toggle();
+    final found = patients.where((p) => p.id == patientId);
     if (found.isEmpty) return const Scaffold(body: SizedBox.shrink());
     final view = PatientView(
       found.first,
-      visits.where((v) => v.patientId == widget.patientId).toList(),
+      visits.where((v) => v.patientId == patientId).toList(),
     );
     final latest = view.latest;
-    final previous = view.visits.skip(1).take(_showAll ? 50 : 2).toList();
+    final previous = view.visits.skip(1).take(showAll ? 50 : 2).toList();
     final due = latest?.followUpOn;
 
     return Scaffold(
@@ -139,8 +135,8 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
                 children: [
                   SectionHeading(
                     'Previous visits',
-                    action: _showAll ? 'Show less' : 'View all',
-                    onAction: () => setState(() => _showAll = !_showAll),
+                    action: showAll ? 'Show less' : 'View all',
+                    onAction: toggleHistory,
                   ),
                   for (final v in previous) ...[
                     const SizedBox(height: 7),
@@ -183,15 +179,14 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
                 icon: Icons.add_circle_outline,
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) =>
-                        RecordVisitScreen(patientId: widget.patientId),
+                    builder: (_) => RecordVisitScreen(patientId: patientId),
                   ),
                 ),
               ),
               const SizedBox(height: 8),
               HbButton.secondary(
-                _showAll ? 'Show recent only' : 'View history',
-                onPressed: () => setState(() => _showAll = !_showAll),
+                showAll ? 'Show recent only' : 'View history',
+                onPressed: toggleHistory,
               ),
             ],
           ),

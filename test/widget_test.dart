@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:health_bridge/core/auth/auth_service.dart';
+import 'package:health_bridge/core/settings/settings.dart';
 import 'package:health_bridge/core/theme/app_theme.dart';
 import 'package:health_bridge/core/widgets/widgets.dart';
 import 'package:health_bridge/data/db.dart';
@@ -11,8 +12,10 @@ import 'package:health_bridge/data/models.dart';
 import 'package:health_bridge/data/providers.dart';
 import 'package:health_bridge/features/auth/login_screen.dart';
 import 'package:health_bridge/features/record/sms_alert_sent_screen.dart';
+import 'package:health_bridge/features/settings/settings_screen.dart';
 import 'package:health_bridge/features/shell/app_shell.dart';
 import 'package:health_bridge/sync/sync_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _session = Session(
   accessToken: 'a',
@@ -21,9 +24,12 @@ const _session = Session(
   fullName: 'Claudine Mukamana',
 );
 
+late SharedPreferences _prefs;
+
 Widget _app(AppDatabase db, Widget home) => ProviderScope(
   overrides: [
     databaseProvider.overrideWithValue(db),
+    sharedPreferencesProvider.overrideWithValue(_prefs),
     sessionProvider.overrideWith((ref) => _session),
     syncNowProvider.overrideWithValue(
       () async {},
@@ -35,9 +41,11 @@ Widget _app(AppDatabase db, Widget home) => ProviderScope(
 void main() {
   late AppDatabase db;
 
-  setUp(() {
+  setUp(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     db = AppDatabase(NativeDatabase.memory());
+    SharedPreferences.setMockInitialValues({});
+    _prefs = await SharedPreferences.getInstance();
   });
 
   // Real DB work completes in real time, so let it finish outside fake-async before settling the UI.
@@ -294,7 +302,9 @@ void main() {
     (tester) async {
       await seedUrgent('sms_composer', DispatchState.unconfirmed);
       phoneScreen(tester);
-      await tester.pumpWidget(_app(db, const SmsAlertSentScreen(visitId: 'v1')));
+      await tester.pumpWidget(
+        _app(db, const SmsAlertSentScreen(visitId: 'v1')),
+      );
       await settle(tester);
 
       expect(find.text('SMS alert sent'), findsOneWidget);
@@ -317,6 +327,42 @@ void main() {
       await finish(tester);
     },
   );
+
+  testWidgets('settings are saved to SharedPreferences as they are changed', (
+    tester,
+  ) async {
+    phoneScreen(tester);
+    await tester.pumpWidget(_app(db, const SettingsScreen()));
+    await tester.pump();
+
+    await tester.tap(find.text('Large'));
+    await tester.tap(find.text('Child Health'));
+    await tester.ensureVisible(find.text('Remember my phone number'));
+    await tester.pump();
+    await tester.tap(find.text('Remember my phone number'));
+    await tester.pump();
+
+    expect(_prefs.getString('settings.textSize'), 'large');
+    expect(_prefs.getString('settings.defaultVisitType'), 'child');
+    expect(_prefs.getBool('settings.rememberLogin'), isTrue);
+    expect(
+      tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+      isTrue,
+    );
+    await finish(tester);
+  });
+
+  testWidgets('the login screen is pre-filled with a remembered ID', (
+    tester,
+  ) async {
+    await _prefs.setBool('settings.rememberLogin', true);
+    await _prefs.setString('settings.loginId', '+250780000101');
+    phoneScreen(tester);
+    await tester.pumpWidget(_app(db, const LoginScreen()));
+
+    expect(find.text('+250780000101'), findsOneWidget);
+    await finish(tester);
+  });
 
   testWidgets('an alert confirmed over the internet shows no SMS actions', (
     tester,

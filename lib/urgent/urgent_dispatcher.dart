@@ -70,7 +70,7 @@ class UrgentDispatcher {
     await _repo.start(visitId);
     try {
       await _postAlert(visitId).timeout(internetTimeout);
-      await _repo.setState(visitId, DispatchState.confirmed);
+      await _repo.updateState(visitId, DispatchState.confirmed);
     } on Exception {
       await sendSms(visitId);
     }
@@ -79,7 +79,7 @@ class UrgentDispatcher {
   /// The SMS fallback, and the Resend button. Any failure to hand the SMS over leaves the alert
   /// unconfirmed straight away, so the CHW can call instead of waiting 10 minutes.
   Future<void> sendSms(String visitId) async {
-    await _repo.setState(
+    await _repo.updateState(
       visitId,
       DispatchState.sending,
       channel: sender.channel,
@@ -96,9 +96,9 @@ class UrgentDispatcher {
         plaintext: encodePlaintext(alertFields(visit, patient, signs)),
       );
       await sender.send(gatewayNumber, parts);
-      await _repo.setState(visitId, DispatchState.sentSms);
+      await _repo.updateState(visitId, DispatchState.sentSms);
     } on Exception {
-      await _repo.setState(visitId, DispatchState.unconfirmed);
+      await _repo.updateState(visitId, DispatchState.unconfirmed);
     }
   }
 
@@ -118,7 +118,7 @@ class UrgentDispatcher {
 
   /// The store build's "I got the confirmation".
   Future<void> confirm(String visitId) =>
-      _repo.setState(visitId, DispatchState.confirmed);
+      _repo.updateState(visitId, DispatchState.confirmed);
 
   Future<void> _postAlert(String visitId) async {
     if (engine.session() == null) {

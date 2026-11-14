@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/providers.dart';
 import '../../sync/background_sync.dart';
+import '../settings/settings_screen.dart';
 import '../shell/app_shell.dart';
 import '../sync/sync_status_screen.dart';
 
@@ -50,6 +51,12 @@ class ProfileScreen extends ConsumerWidget {
           'Sync status',
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const SyncStatusScreen()),
+          ),
+        ),
+        HbButton.secondary(
+          'Settings',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
           ),
         ),
         HbButton.secondary(

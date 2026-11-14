@@ -102,9 +102,8 @@ void main() {
   tearDown(() => db.close());
 
   Future<(Patient, Visit)> urgentVisit() async {
-    final p = await PatientsRepository(
-      db,
-    ).create(fullName: 'Uwase Marie', village: 'Nyamata');
+    final p = await PatientsRepository(db)
+        .create(fullName: 'Uwase Marie', village: 'Nyamata');
     final v = await VisitsRepository(db, now: () => clock).record(
       patientId: p.id,
       type: VisitType.maternal,
@@ -151,26 +150,29 @@ void main() {
   });
 
   for (final failure in [Net.down, Net.error, Net.hang]) {
-    test('internet ${failure.name}: the sealed SMS goes to the gateway, then waits for the ack', () async {
-      net = failure;
-      final (p, v) = await urgentVisit();
-      await dispatcher.send(v.id);
+    test(
+      'internet ${failure.name}: the sealed SMS goes to the gateway, then waits for the ack',
+      () async {
+        net = failure;
+        final (p, v) = await urgentVisit();
+        await dispatcher.send(v.id);
 
-      final d = await dispatchOf(v.id);
-      expect(d.state, DispatchState.sentSms);
-      expect(d.channel, 'sms_direct');
-      final (to, parts) = sender.sent.single;
-      expect(to, '+250780000500');
-      expect(parts.single, startsWith('HB1 D000042 '));
+        final d = await dispatchOf(v.id);
+        expect(d.state, DispatchState.sentSms);
+        expect(d.channel, 'sms_direct');
+        final (to, parts) = sender.sent.single;
+        expect(to, '+250780000500');
+        expect(parts.single, startsWith('HB1 D000042 '));
 
-      final fields = decodePlaintext((await openSms(key, parts)).plaintext);
-      expect(fields.shortCode, v.shortCode);
-      expect(fields.patient, p.shortId);
-      expect(fields.type, 'M');
-      expect(fields.time, '2610062114');
-      expect(fields.signs, ['HB']);
-      expect(fields.vitals, ['T389']);
-    });
+        final fields = decodePlaintext((await openSms(key, parts)).plaintext);
+        expect(fields.shortCode, v.shortCode);
+        expect(fields.patient, p.shortId);
+        expect(fields.type, 'M');
+        expect(fields.time, '2610062114');
+        expect(fields.signs, ['HB']);
+        expect(fields.vitals, ['T389']);
+      },
+    );
   }
 
   test('no ack within 10 minutes makes it unconfirmed; a later ack still confirms it', () async {
@@ -192,14 +194,17 @@ void main() {
     expect(await dispatcher.expire(), 0);
   });
 
-  test('acks the receiver collected while the app was closed are applied', () async {
-    net = Net.down;
-    final (_, v) = await urgentVisit();
-    await dispatcher.send(v.id);
-    sender.acks = [v.shortCode];
-    await dispatcher.applyAcks();
-    expect((await dispatchOf(v.id)).state, DispatchState.confirmed);
-  });
+  test(
+    'acks the receiver collected while the app was closed are applied',
+    () async {
+      net = Net.down;
+      final (_, v) = await urgentVisit();
+      await dispatcher.send(v.id);
+      sender.acks = [v.shortCode];
+      await dispatcher.applyAcks();
+      expect((await dispatchOf(v.id)).state, DispatchState.confirmed);
+    },
+  );
 
   test('Resend sends again and restarts the 10-minute wait', () async {
     net = Net.down;
@@ -224,14 +229,17 @@ void main() {
     expect((await dispatchOf(v.id)).state, DispatchState.unconfirmed);
   });
 
-  test('without a registered device there is no key to seal with: unconfirmed', () async {
-    FlutterSecureStorage.setMockInitialValues({});
-    net = Net.down;
-    final (_, v) = await urgentVisit();
-    await dispatcher.send(v.id);
-    expect((await dispatchOf(v.id)).state, DispatchState.unconfirmed);
-    expect(sender.sent, isEmpty);
-  });
+  test(
+    'without a registered device there is no key to seal with: unconfirmed',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      net = Net.down;
+      final (_, v) = await urgentVisit();
+      await dispatcher.send(v.id);
+      expect((await dispatchOf(v.id)).state, DispatchState.unconfirmed);
+      expect(sender.sent, isEmpty);
+    },
+  );
 
   test('"I got the confirmation" (store build) confirms it', () async {
     net = Net.down;
