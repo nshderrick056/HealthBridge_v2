@@ -1,10 +1,10 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { Router } from 'express';
+import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import type { AccessClaims } from '../auth/tokens';
-import type { Db } from '../db';
+import type { Fb } from '../firebase';
 import { HttpError } from '../http';
-import { requireAuth, requireRole } from '../middleware/auth';
+import { callerOf, requireRole, requireUser } from '../middleware/auth';
 import { wrapKey } from '../sms/keystore';
 
 const body = z.object({
@@ -12,26 +12,36 @@ const body = z.object({
   simPhone: z.string().min(6).max(20).optional(),
 });
 
-export const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === 'P2002';
+/** Firestore's error code for "document already exists" (gRPC ALREADY_EXISTS). */
+export const isAlreadyExists = (e: unknown) => (e as { code?: number })?.code === 6;
 
-export function devicesRouter(db: Db) {
+export function devicesRouter(fb: Fb) {
   const router = Router();
 
-  // The key is returned once, here. Registering again issues a new device and key.
-  router.post('/register', requireAuth, requireRole('chw'), async (req, res) => {
+  // The key is returned once, here, and kept wrapped in the server-only `deviceKeys`.
+  // Registering again issues a new device and key.
+  router.post('/register', requireUser(fb), requireRole('chw'), async (req, res) => {
     const { buildFlavor, simPhone } = body.parse(req.body);
-    const { sub } = res.locals.auth as AccessClaims;
+    const { uid } = callerOf(res);
     const key = randomBytes(32);
     for (let attempt = 0; attempt < 5; attempt++) {
       const id = `D${randomInt(1_000_000).toString().padStart(6, '0')}`;
       try {
-        await db.devices.create({
-          data: { id, user_id: sub, sms_key: new Uint8Array(wrapKey(key)), sim_phone: simPhone, build_flavor: buildFlavor },
+        const batch = fb.fs.batch();
+        batch.create(fb.fs.collection('devices').doc(id), {
+          userId: uid,
+          buildFlavor,
+          simPhone: simPhone ?? null,
+          lastSyncAt: null,
+          revokedAt: null,
+          createdAt: FieldValue.serverTimestamp(),
         });
+        batch.create(fb.fs.collection('deviceKeys').doc(id), { smsKey: wrapKey(key) });
+        await batch.commit();
         res.status(201).json({ deviceId: id, smsKey: key.toString('base64') });
         return;
       } catch (e) {
-        if (!isUniqueViolation(e)) throw e;
+        if (!isAlreadyExists(e)) throw e;
       }
     }
     throw new HttpError(503, 'device_id_unavailable');

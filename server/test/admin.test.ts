@@ -1,98 +1,70 @@
-import { randomInt, randomUUID } from 'node:crypto';
-import type express from 'express';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from '../src/app';
-import { signAccess, type Role } from '../src/auth/tokens';
-import { createPrisma, type Db } from '../src/db';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { admin, bearer, centre, chw, claimsOf, clearEmulators, exchange, fb, idToken, makeApp } from './emulator';
 
-// Runs against a real Postgres (CI service, or the dev DB from .env); everything it creates is deleted.
-const url = process.env.DATABASE_URL;
+const { app } = makeApp();
+let adminToken: string;
 
-describe.skipIf(!url)('admin account management against Postgres', () => {
-  let db: Db;
-  let app: express.Express;
-  const tag = randomInt(1_000_000).toString().padStart(6, '0');
-  const admin = randomUUID();
-  const centres: string[] = [];
-  const phoneFor = (n: number) => `+2507${tag}${n}`;
+beforeAll(async () => {
+  await clearEmulators();
+  await admin();
+  await centre('hc-a');
+  await chw('chw-x', 'hc-a', '+250780000301');
+  adminToken = bearer(await idToken('admin-1'));
+});
 
-  const auth = (role: Role = 'admin', sub = admin) => `Bearer ${signAccess({ sub, role, hc: null })}`;
-  const post = (path: string, body: object, as = auth()) => request(app).post(path).set('authorization', as).send(body);
+const post = (path: string, body: object, auth = adminToken) => request(app).post(path).set('authorization', auth).send(body);
 
-  async function centre() {
-    const res = await post('/admin/health-centers', { name: `Admin test centre ${tag}`, district: 'Test', sector: 'Test' }).expect(201);
-    centres.push(res.body.id);
-    return res.body.id as string;
-  }
-
-  beforeAll(async () => {
-    db = createPrisma(url);
-    app = createApp({ db, sender: { send: async () => ({ gatewayId: null }) } });
-    await db.users.create({
-      data: { id: admin, role: 'admin', full_name: 'Test Admin', phone: phoneFor(90), secret_hash: 'x' },
-    });
-  });
-
-  afterAll(async () => {
-    if (!db) return;
-    const made = await db.users.findMany({ where: { phone: { startsWith: `+2507${tag}` } }, select: { id: true } });
-    const ids = made.map((u) => u.id);
-    await db.audit_log.deleteMany({ where: { actor_id: { in: ids } } });
-    await db.users.deleteMany({ where: { id: { in: ids } } });
-    await db.health_centers.deleteMany({ where: { id: { in: centres } } });
-    await db.$disconnect();
-  });
-
+describe('admin accounts (no self sign-up)', () => {
   it('is for admins only', async () => {
     await request(app).post('/admin/users').send({}).expect(401);
-    await post('/admin/users', {}, auth('supervisor')).expect(403);
-    await post('/admin/health-centers', {}, auth('chw')).expect(403);
+    await post('/admin/users', {}, bearer(await idToken('chw-x'))).expect(403);
   });
 
-  it('creates a CHW who can then log in on the phone with phone + PIN', async () => {
-    const hc = await centre();
+  it('creates a health centre, then a CHW who can sign in with phone + PIN', async () => {
+    const hc = (await post('/admin/health-centers', { name: 'Gatare HC', district: 'Nyamagabe', sector: 'Gatare' }).expect(201)).body.id;
     const res = await post('/admin/users', {
       role: 'chw',
       fullName: 'Mukamana Alice',
-      phone: phoneFor(1),
+      phone: '+250780000310',
       pin: '482913',
       chwRole: 'binome',
       village: 'Gatare',
       healthCenterId: hc,
     }).expect(201);
-    expect(res.body).toMatchObject({ role: 'chw', fullName: 'Mukamana Alice' });
 
-    const login = await request(app).post('/auth/login').send({ phone: phoneFor(1), pin: '482913' }).expect(200);
-    expect(login.body.user).toMatchObject({ role: 'chw', healthCenterId: hc });
-    expect(await db.audit_log.findFirst({ where: { actor_id: admin, entity_id: res.body.id } })).toMatchObject({
-      action: 'user.create',
-    });
+    const user = (await fb.fs.collection('users').doc(res.body.id).get()).data();
+    expect(user).toMatchObject({ role: 'chw', fullName: 'Mukamana Alice', healthCenterId: hc, active: true });
+    // The PIN hash is in the server-only collection, never on the profile.
+    expect(JSON.stringify(user)).not.toContain('482913');
+    expect((await fb.fs.collection('credentials').doc(res.body.id).get()).data()?.pinHash).toMatch(/^\$argon2id\$/);
+
+    const login = await request(app).post('/auth/pin').send({ phone: '+250780000310', pin: '482913' }).expect(200);
+    expect(claimsOf(await exchange(login.body.customToken))).toMatchObject({ role: 'chw', hc });
   });
 
-  it('creates a supervisor who can log in on the dashboard with email + password', async () => {
-    const hc = await centre();
-    const email = `sup${tag}@example.test`;
-    await post('/admin/users', {
+  it('creates a supervisor with an email + password Firebase account and role claims', async () => {
+    const res = await post('/admin/users', {
       role: 'supervisor',
       fullName: 'Nyirahabimana Grace',
-      phone: phoneFor(2),
-      email,
+      phone: '+250780000311',
+      email: 'grace@example.test',
       password: 'long-enough-password',
-      healthCenterId: hc,
+      healthCenterId: 'hc-a',
     }).expect(201);
-    const login = await request(app).post('/auth/login').send({ email, password: 'long-enough-password' }).expect(200);
-    expect(login.body.user).toMatchObject({ role: 'supervisor', healthCenterId: hc });
+    const account = await fb.auth.getUser(res.body.id);
+    expect(account.email).toBe('grace@example.test');
+    expect(account.customClaims).toEqual({ role: 'supervisor', hc: 'hc-a' });
   });
 
-  it('refuses duplicates, weak PINs and unknown health centres', async () => {
-    const hc = await centre();
-    const chw = { role: 'chw', fullName: 'Habimana Noel', phone: phoneFor(3), pin: '1357', chwRole: 'asm', village: 'Rugarama', healthCenterId: hc };
-    await post('/admin/users', chw).expect(201);
-    expect((await post('/admin/users', chw).expect(409)).body).toEqual({ error: 'phone_or_email_taken' });
-    await post('/admin/users', { ...chw, phone: phoneFor(4), pin: '12' }).expect(400);
-    await post('/admin/users', { ...chw, phone: phoneFor(5), role: 'admin' }).expect(400); // admins are not created over the API
-    expect((await post('/admin/users', { ...chw, phone: phoneFor(6), healthCenterId: randomUUID() }).expect(400)).body).toEqual({
+  it('refuses duplicates, weak PINs, admins and unknown health centres', async () => {
+    const base = { role: 'chw', fullName: 'Habimana Noel', pin: '1357', chwRole: 'asm', village: 'Rugarama', healthCenterId: 'hc-a' };
+    await post('/admin/users', { ...base, phone: '+250780000320' }).expect(201);
+    expect((await post('/admin/users', { ...base, phone: '+250780000320' }).expect(409)).body).toEqual({ error: 'phone_or_email_taken' });
+    await post('/admin/users', { ...base, phone: '+250780000321', pin: '12' }).expect(400);
+    await post('/admin/users', { ...base, phone: '+250780000322', role: 'admin' }).expect(400);
+    await post('/admin/users', { ...base, phone: '0780000323' }).expect(400); // not international format
+    expect((await post('/admin/users', { ...base, phone: '+250780000324', healthCenterId: 'nope' }).expect(400)).body).toEqual({
       error: 'unknown_health_center',
     });
   });

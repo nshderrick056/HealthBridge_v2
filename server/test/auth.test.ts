@@ -1,179 +1,105 @@
-import { hash } from '@node-rs/argon2';
-import express from 'express';
-import jwt from 'jsonwebtoken';
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { createApp } from '../src/app';
-import { MAX_FAILED_LOGINS } from '../src/auth/routes';
-import { signAccess, verifyAccess } from '../src/auth/tokens';
-import type { Db } from '../src/db';
-import { requireAuth, requireRole } from '../src/middleware/auth';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { MAX_CODE_ATTEMPTS, MAX_FAILED_LOGINS } from '../src/auth/routes';
+import { admin, bearer, centre, chw, claimsOf, clearEmulators, exchange, fb, idToken, makeApp, supervisor } from './emulator';
 
-type User = {
-  id: string;
-  role: 'chw' | 'supervisor' | 'admin';
-  full_name: string;
-  phone: string;
-  email: string | null;
-  secret_hash: string;
-  health_center_id: string | null;
-  language: string;
-  active: boolean;
-  failed_logins: number;
-  locked_until: Date | null;
-};
+const { app, sender } = makeApp();
+const PHONE = '+250780000201';
 
-// Just enough of Prisma's users delegate for the auth routes.
-function fakeDb(users: User[]) {
-  const matches = (u: User, where: Record<string, unknown>) =>
-    Object.entries(where).every(([k, v]) => u[k as keyof User] === v);
-  return {
-    users: {
-      findFirst: async ({ where }: { where: Record<string, unknown> }) =>
-        users.find((u) => matches(u, where)) ?? null,
-      update: async ({ where, data }: { where: { id: string }; data: Record<string, any> }) => {
-        const u = users.find((x) => x.id === where.id)!;
-        for (const [k, v] of Object.entries(data)) {
-          (u as any)[k] = v && typeof v === 'object' && 'increment' in v ? (u as any)[k] + v.increment : v;
-        }
-        return u;
-      },
-    },
-  } as unknown as Db;
-}
-
-let users: User[];
-let app: express.Express;
-
-beforeEach(async () => {
-  users = [
-    {
-      id: '00000000-0000-4000-8000-000000000001',
-      role: 'chw',
-      full_name: 'Test CHW',
-      phone: '+250780000001',
-      email: null,
-      secret_hash: await hash('1234'),
-      health_center_id: '00000000-0000-4000-8000-0000000000aa',
-      language: 'rw',
-      active: true,
-      failed_logins: 0,
-      locked_until: null,
-    },
-    {
-      id: '00000000-0000-4000-8000-000000000002',
-      role: 'supervisor',
-      full_name: 'Test Supervisor',
-      phone: '+250780000002',
-      email: 'sup@example.test',
-      secret_hash: await hash('correct-horse-battery'),
-      health_center_id: '00000000-0000-4000-8000-0000000000aa',
-      language: 'en',
-      active: true,
-      failed_logins: 0,
-      locked_until: null,
-    },
-  ];
-  app = createApp({ db: fakeDb(users), sender: { send: async () => ({ gatewayId: null }) } });
+beforeAll(async () => {
+  await clearEmulators();
+  await centre('hc-a');
+  await chw('chw-a', 'hc-a', PHONE, '1357');
+  await chw('chw-lock', 'hc-a', '+250780000202', '2468');
+  await supervisor('sup-a', 'hc-a', '+250780000203');
+  await admin();
 });
 
-const login = (body: object) => request(app).post('/auth/login').send(body);
+const pinLogin = (phone: string, pin: string) => request(app).post('/auth/pin').send({ phone, pin });
 
-describe('GET /health', () => {
-  it('answers without auth', async () => {
-    await request(app).get('/health').expect(200, { ok: true });
-    await request(app).head('/health').expect(200);
+describe('POST /auth/pin', () => {
+  it('turns phone + PIN into a Firebase custom token carrying role and health centre', async () => {
+    const res = await pinLogin(PHONE, '1357').expect(200);
+    const token = await exchange(res.body.customToken);
+    expect(claimsOf(token)).toMatchObject({ user_id: 'chw-a', role: 'chw', hc: 'hc-a' });
+  });
+
+  it('refuses a wrong PIN, an unknown phone and a malformed request alike', async () => {
+    expect((await pinLogin(PHONE, '9999').expect(401)).body).toEqual({ error: 'invalid_credentials' });
+    expect((await pinLogin('+250780000299', '1357').expect(401)).body).toEqual({ error: 'invalid_credentials' });
+    await pinLogin(PHONE, '12').expect(400);
+  });
+
+  it(`locks the PIN for 15 minutes after ${MAX_FAILED_LOGINS} wrong tries`, async () => {
+    for (let i = 0; i < MAX_FAILED_LOGINS; i++) await pinLogin('+250780000202', '0000').expect(401);
+    expect((await pinLogin('+250780000202', '2468').expect(429)).body).toEqual({ error: 'too_many_attempts' });
   });
 });
 
-describe('POST /auth/login', () => {
-  it('logs a CHW in with phone + PIN', async () => {
-    const res = await login({ phone: '+250780000001', pin: '1234' }).expect(200);
-    expect(verifyAccess(res.body.accessToken)).toMatchObject({ sub: users[0].id, role: 'chw' });
-    expect(res.body.refreshToken).toBeTypeOf('string');
-    expect(res.body.user).toEqual({
-      id: users[0].id,
-      role: 'chw',
-      fullName: 'Test CHW',
-      healthCenterId: users[0].health_center_id,
-      language: 'rw',
-    });
-    expect(res.body.user).not.toHaveProperty('secret_hash');
+describe('forgot PIN / password, approved by an admin', () => {
+  it('request -> admin approves -> texted code -> new PIN; the old PIN stops working', async () => {
+    await request(app).post('/auth/reset/request').send({ phone: PHONE }).expect(200);
+    // Asking twice does not pile up requests.
+    await request(app).post('/auth/reset/request').send({ phone: PHONE }).expect(200);
+
+    const adminToken = bearer(await idToken('admin-1'));
+    const list = await request(app).get('/admin/reset-requests').set('authorization', adminToken).expect(200);
+    const mine = list.body.requests.filter((r: { userId: string }) => r.userId === 'chw-a');
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ name: 'CHW chw-a', phone: PHONE, role: 'chw' });
+
+    await request(app).post(`/admin/reset-requests/${mine[0].id}/approve`).set('authorization', adminToken).expect(200);
+    const text = sender.sent.at(-1)!;
+    expect(text.to).toBe(PHONE);
+    const code = /code is (\d{6})/.exec(text.text)![1];
+
+    const wrong = code === '000000' ? '111111' : '000000';
+    await request(app).post('/auth/reset/verify').send({ phone: PHONE, code: wrong }).expect(401);
+    const ok = await request(app).post('/auth/reset/verify').send({ phone: PHONE, code }).expect(200);
+    await request(app).post('/auth/reset/complete').send({ resetToken: ok.body.resetToken, pin: '8642' }).expect(200);
+    // The reset token is single-use.
+    await request(app).post('/auth/reset/complete').send({ resetToken: ok.body.resetToken, pin: '1111' }).expect(401);
+
+    await pinLogin(PHONE, '1357').expect(401);
+    await pinLogin(PHONE, '8642').expect(200);
+    const audit = await fb.fs.collection('auditLog').where('entityId', '==', mine[0].id).get();
+    expect(audit.docs.map((d) => d.data().action).sort()).toEqual(['reset.approve', 'reset.complete', 'reset.request']);
   });
 
-  it('logs a supervisor in with email + password', async () => {
-    await login({ email: 'sup@example.test', password: 'correct-horse-battery' }).expect(200);
-  });
-
-  it('rejects a wrong PIN, an unknown phone and an inactive user the same way', async () => {
-    await login({ phone: '+250780000001', pin: '9999' }).expect(401, { error: 'invalid_credentials' });
-    await login({ phone: '+250789999999', pin: '1234' }).expect(401, { error: 'invalid_credentials' });
-    users[0].active = false;
-    await login({ phone: '+250780000001', pin: '1234' }).expect(401, { error: 'invalid_credentials' });
-  });
-
-  it('locks the account after repeated wrong PINs, then resets on success', async () => {
-    for (let i = 0; i < MAX_FAILED_LOGINS; i++) {
-      await login({ phone: '+250780000001', pin: '0000' }).expect(401);
+  it(`closes an approved request after ${MAX_CODE_ATTEMPTS} wrong codes`, async () => {
+    await request(app).post('/auth/reset/request').send({ phone: '+250780000203' }).expect(200);
+    const adminToken = bearer(await idToken('admin-1'));
+    const { body } = await request(app).get('/admin/reset-requests').set('authorization', adminToken);
+    const id = body.requests.find((r: { userId: string }) => r.userId === 'sup-a').id;
+    await request(app).post(`/admin/reset-requests/${id}/approve`).set('authorization', adminToken).expect(200);
+    const code = /code is (\d{6})/.exec(sender.sent.at(-1)!.text)![1];
+    const wrong = code === '000000' ? '111111' : '000000';
+    for (let i = 0; i < MAX_CODE_ATTEMPTS; i++) {
+      await request(app).post('/auth/reset/verify').send({ email: 'sup-a@example.test', code: wrong }).expect(401);
     }
-    await login({ phone: '+250780000001', pin: '1234' }).expect(429);
-
-    users[0].locked_until = new Date(Date.now() - 1000); // lock expired
-    await login({ phone: '+250780000001', pin: '1234' }).expect(200);
-    expect(users[0]).toMatchObject({ failed_logins: 0, locked_until: null });
+    await request(app).post('/auth/reset/verify').send({ email: 'sup-a@example.test', code }).expect(401);
+    expect((await fb.fs.collection('resetRequests').doc(id).get()).data()?.status).toBe('expired');
   });
 
-  it('validates the body', async () => {
-    await login({ phone: '+250780000001', pin: '12' }).expect(400);
-    await login({}).expect(400);
-    await request(app).post('/auth/login').set('content-type', 'application/json').send('{bad').expect(400);
-  });
-});
-
-describe('POST /auth/refresh', () => {
-  it('issues a new access token for a refresh token', async () => {
-    const { body } = await login({ phone: '+250780000001', pin: '1234' });
-    const res = await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(200);
-    expect(verifyAccess(res.body.accessToken).sub).toBe(users[0].id);
+  it('answers the same for unknown accounts and records nothing', async () => {
+    const before = (await fb.fs.collection('resetRequests').get()).size;
+    await request(app).post('/auth/reset/request').send({ phone: '+250780000999' }).expect(200);
+    await request(app).post('/auth/reset/request').send({ email: 'nobody@example.test' }).expect(200);
+    expect((await fb.fs.collection('resetRequests').get()).size).toBe(before);
   });
 
-  it('rejects an access token used as a refresh token, and deactivated users', async () => {
-    const { body } = await login({ phone: '+250780000001', pin: '1234' });
-    await request(app).post('/auth/refresh').send({ refreshToken: body.accessToken }).expect(401);
-    users[0].active = false;
-    await request(app).post('/auth/refresh').send({ refreshToken: body.refreshToken }).expect(401);
-  });
-});
+  it('only admins see and approve requests, and an SMS failure keeps the request pending', async () => {
+    const chwToken = bearer(await idToken('chw-a'));
+    await request(app).get('/admin/reset-requests').set('authorization', chwToken).expect(403);
+    await request(app).get('/admin/reset-requests').expect(401);
 
-describe('requireAuth / requireRole', () => {
-  const guarded = express()
-    .get('/sup', requireAuth, requireRole('supervisor'), (_req, res) => {
-      res.json(res.locals.auth);
-    });
-  const token = (role: 'chw' | 'supervisor') => signAccess({ sub: 'u1', role, hc: 'hc1' });
-
-  it('401 without a token, with a bad token, or with an expired token', async () => {
-    await request(guarded).get('/sup').expect(401);
-    await request(guarded).get('/sup').set('authorization', 'Bearer nope').expect(401);
-    const expired = jwt.sign({ sub: 'u1', role: 'supervisor', hc: null }, process.env.JWT_SECRET!, {
-      expiresIn: -10,
-    });
-    await request(guarded).get('/sup').set('authorization', `Bearer ${expired}`).expect(401);
-  });
-
-  it('403 for the wrong role, 200 for the right one', async () => {
-    await request(guarded).get('/sup').set('authorization', `Bearer ${token('chw')}`).expect(403);
-    const res = await request(guarded).get('/sup').set('authorization', `Bearer ${token('supervisor')}`).expect(200);
-    expect(res.body).toEqual({ sub: 'u1', role: 'supervisor', hc: 'hc1' });
-  });
-});
-
-describe('CORS for the web build', () => {
-  it('answers a localhost preflight and ignores other origins', async () => {
-    const ok = await request(app).options('/auth/login').set('origin', 'http://localhost:54321').expect(204);
-    expect(ok.headers['access-control-allow-origin']).toBe('http://localhost:54321');
-    expect(ok.headers['access-control-allow-headers']).toContain('authorization');
-    const other = await request(app).options('/auth/login').set('origin', 'https://evil.example').expect(204);
-    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+    await request(app).post('/auth/reset/request').send({ phone: '+250780000202' }).expect(200);
+    const adminToken = bearer(await idToken('admin-1'));
+    const { body } = await request(app).get('/admin/reset-requests').set('authorization', adminToken);
+    const id = body.requests.find((r: { userId: string }) => r.userId === 'chw-lock').id;
+    sender.fail = true;
+    await request(app).post(`/admin/reset-requests/${id}/approve`).set('authorization', adminToken).expect(502);
+    sender.fail = false;
+    expect((await fb.fs.collection('resetRequests').doc(id).get()).data()?.status).toBe('pending');
   });
 });

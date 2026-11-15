@@ -1,22 +1,24 @@
 import express from 'express';
 import { adminRouter } from './admin/routes';
-import { chwAlertsRouter } from './alerts/routes';
 import { authRouter } from './auth/routes';
-import type { Db } from './db';
 import { devicesRouter } from './devices/routes';
 import { env } from './env';
+import type { Fb } from './firebase';
 import { errorHandler } from './http';
 import type { SmsSender } from './sms/gateway';
 import { smsRouter } from './sms/webhook';
 import { supervisorRouter } from './supervisor/routes';
-import { syncRouter } from './sync/routes';
+import { visitsRouter } from './visits/merge';
 
-export function createApp({ db, sender }: { db: Db; sender: SmsSender }) {
+// Patients, visits and internet alerts go from the app straight to Firestore under the security rules.
+// This server does what an app must not: PIN sign-in, admin accounts and resets, device keys, the SMS
+// gateway, alert status changes, and merging an SMS case with the full visit.
+export function createApp({ fb, sender }: { fb: Fb; sender: SmsSender }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '1mb' }));
 
-  // The web build of the app calls the API cross-origin. Tokens travel in headers, never cookies.
+  // The web dashboard calls the API cross-origin. Tokens travel in headers, never cookies.
   const allowed = env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',').map((o) => o.trim()) : undefined;
   app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -30,17 +32,16 @@ export function createApp({ db, sender }: { db: Db; sender: SmsSender }) {
     next();
   });
 
-  // Reachability check for the app (HEAD is served by this GET). Never touches the DB.
+  // Reachability check for the app (HEAD is served by this GET). Never touches Firestore.
   app.get('/health', (_req, res) => {
     res.json({ ok: true });
   });
-  app.use('/auth', authRouter(db));
-  app.use('/devices', devicesRouter(db));
-  app.use('/admin', adminRouter(db));
-  app.use(supervisorRouter(db, sender));// GET /alerts, GET|PATCH /alerts/:id, GET /chws; guarded per route
-  app.use('/webhooks/sms', smsRouter(db, sender));
-  app.use('/sync', syncRouter(db));
-  app.use('/alerts', chwAlertsRouter(db));
+  app.use('/auth', authRouter(fb));
+  app.use('/devices', devicesRouter(fb));
+  app.use('/admin', adminRouter(fb, sender));
+  app.use('/visits', visitsRouter(fb));
+  app.use('/webhooks/sms', smsRouter(fb, sender));
+  app.use(supervisorRouter(fb, sender)); // GET /alerts, GET|PATCH /alerts/:id, GET /chws; guarded per route
 
   app.use(errorHandler);
   return app;

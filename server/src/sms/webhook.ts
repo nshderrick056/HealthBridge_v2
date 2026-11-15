@@ -1,16 +1,17 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { Router, urlencoded, type Request } from 'express';
+import { FieldValue, Timestamp, type DocumentReference } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import type { Db } from '../db';
-import { isUniqueViolation } from '../devices/routes';
+import type { UserDoc } from '../accounts';
 import { env } from '../env';
+import type { Fb } from '../firebase';
 import { HttpError } from '../http';
 import { CodecError, ackTag, decodePlaintext, openSms, parseSms, type AlertFields } from './codec';
 import type { SmsSender } from './gateway';
 import { unwrapKey } from './keystore';
 
 const PART_WINDOW_MS = 60 * 60_000; // how long part 1 waits for part 2
-// Name on a patient created from an SMS, which only carries the short ID. /sync/push replaces it.
+// Name on a patient created from an SMS, which only carries the short ID. The phone's full record replaces it.
 export const STUB_PATIENT_NAME = '(awaiting sync)';
 const VISIT_TYPES = { M: 'maternal', C: 'child', L: 'malaria', N: 'nutrition' } as const;
 
@@ -34,16 +35,26 @@ export function parsePhoneTime(t: string): Date | null {
   return back === t ? d : null;
 }
 
-export function smsRouter(db: Db, sender: SmsSender) {
+class Rejected extends Error {}
+
+export function smsRouter(fb: Fb, sender: SmsSender) {
   const router = Router();
+  const { fs } = fb;
+  const messages = fs.collection('smsMessages');
   router.use(urlencoded({ extended: false }));
   router.use((req, _res, next) => (secretOk(req) ? next() : next(new HttpError(401, 'unauthorized'))));
 
-  const reject = async (phone: string, text: string, error: string, deviceId: string | null = null) => {
-    await db.sms_messages.create({
-      data: { direction: 'in', phone, device_id: deviceId, raw_text: text, status: 'rejected', error },
+  const log = (data: Record<string, unknown>) =>
+    messages.add({
+      deviceId: null,
+      visitId: null,
+      error: null,
+      gatewayId: null,
+      ...data,
+      createdAt: FieldValue.serverTimestamp(),
     });
-  };
+  const reject = (phone: string, text: string, error: string, deviceId: string | null = null) =>
+    log({ direction: 'in', phone, deviceId, rawText: text, status: 'rejected', error });
 
   // Always answers 200 once the secret is right, so the gateway does not retry bad messages.
   router.post('/', async (req, res) => {
@@ -54,45 +65,41 @@ export function smsRouter(db: Db, sender: SmsSender) {
       return void res.json({ ok: true });
     }
 
-    const device = await db.devices.findFirst({
-      where: { id: parsed.deviceId, revoked_at: null },
-      include: { user: true },
-    });
-    if (!device || !device.user.active) {
+    const device = (await fs.collection('devices').doc(parsed.deviceId).get()).data();
+    const user = device && ((await fs.collection('users').doc(device.userId).get()).data() as UserDoc | undefined);
+    const keyDoc = device && (await fs.collection('deviceKeys').doc(parsed.deviceId).get()).data();
+    if (!device || device.revokedAt || !user?.active || !keyDoc) {
       await reject(from, text, 'unknown_device');
       return void res.json({ ok: true });
     }
-    const key = unwrapKey(device.sms_key);
+    const deviceId = parsed.deviceId;
+    const chwId = device.userId as string;
+    const key = unwrapKey(keyDoc.smsKey);
 
     // Reassemble: a part is parked until its sibling arrives; the auth tag tells us which one matches.
     let texts = [text];
-    let sibling: { id: bigint } | null = null;
+    let sibling: DocumentReference | null = null;
     if (parsed.part) {
-      const candidates = await db.sms_messages.findMany({
-        where: {
-          device_id: device.id,
-          status: 'part',
-          created_at: { gte: new Date(Date.now() - PART_WINDOW_MS) },
-          raw_text: { startsWith: `HB1 ${device.id} ${parsed.part === 1 ? 2 : 1}/2 ` },
-        },
-        orderBy: { created_at: 'desc' },
-      });
-      const match = candidates.find((c) => {
+      const prefix = `HB1 ${deviceId} ${parsed.part === 1 ? 2 : 1}/2 `;
+      const parked = await messages.where('deviceId', '==', deviceId).where('status', '==', 'part').get();
+      const since = Date.now() - PART_WINDOW_MS;
+      const match = parked.docs.find((c) => {
+        const d = c.data();
+        if (!(d.rawText as string).startsWith(prefix)) return false;
+        if (((d.createdAt as Timestamp | undefined)?.toMillis() ?? 0) < since) return false;
         try {
-          openSms(key, [c.raw_text, text]);
+          openSms(key, [d.rawText, text]);
           return true;
         } catch {
           return false;
         }
       });
       if (!match) {
-        await db.sms_messages.create({
-          data: { direction: 'in', phone: from, device_id: device.id, raw_text: text, status: 'part' },
-        });
+        await log({ direction: 'in', phone: from, deviceId, rawText: text, status: 'part' });
         return void res.json({ ok: true });
       }
-      sibling = match;
-      texts = [match.raw_text, text];
+      sibling = match.ref;
+      texts = [match.data().rawText, text];
     }
 
     let opened: ReturnType<typeof openSms>;
@@ -101,90 +108,117 @@ export function smsRouter(db: Db, sender: SmsSender) {
       opened = openSms(key, texts);
       fields = decodePlaintext(opened.plaintext);
     } catch (e) {
-      await reject(from, text, e instanceof CodecError ? e.message : 'invalid', device.id);
+      await reject(from, text, e instanceof CodecError ? e.message : 'invalid', deviceId);
       return void res.json({ ok: true });
     }
     const recordedAt = parsePhoneTime(fields.time);
-    const healthCenterId = device.user.health_center_id;
+    const healthCenterId = user.healthCenterId;
     if (!recordedAt || !healthCenterId) {
-      await reject(from, text, recordedAt ? 'no_health_center' : 'bad_time', device.id);
+      await reject(from, text, recordedAt ? 'no_health_center' : 'bad_time', deviceId);
       return void res.json({ ok: true });
     }
 
+    // The message's ID is device + nonce, so a replayed SMS collides with the first one and is refused.
+    const messageRef = messages.doc(`${deviceId}_${opened.nonce.toString('hex')}`);
+    const known = fields.signs.length
+      ? await fs.getAll(...fields.signs.map((c) => fs.collection('dangerSigns').doc(c)))
+      : [];
     let visitId: string;
     try {
-      visitId = await db.$transaction(async (tx) => {
-        // UNIQUE (device_id, nonce) is the replay check: a reused nonce aborts the whole transaction.
-        await tx.sms_messages.create({
-          data: {
-            direction: 'in',
-            phone: from,
-            device_id: device.id,
-            nonce: new Uint8Array(opened.nonce),
-            raw_text: text,
-            status: 'parsed',
-          },
-        });
-        if (sibling) await tx.sms_messages.update({ where: { id: sibling.id }, data: { status: 'parsed' } });
+      visitId = await fs.runTransaction(async (tx) => {
+        if ((await tx.get(messageRef)).exists) throw new Rejected('replay');
+        const patientSnap = await tx.get(fs.collection('patients').where('shortId', '==', fields.patient).limit(1));
+        // The internet alert, the phone's full visit or an earlier copy of this SMS may already be here.
+        const visitSnap = await tx.get(
+          fs.collection('visits').where('deviceId', '==', deviceId).where('shortCode', '==', fields.shortCode).limit(1),
+        );
+        const id = visitSnap.empty ? randomUUID() : visitSnap.docs[0].id;
+        const alertRef = fs.collection('alerts').doc(id);
+        const alertExists = (await tx.get(alertRef)).exists;
 
-        let patient = await tx.patients.findFirst({ where: { short_id: fields.patient } });
-        if (patient && patient.chw_id !== device.user_id) throw new CodecError('patient_mismatch');
-        // The SMS only carries the short ID. The stub is replaced when the CHW's full record syncs (slice 5).
-        patient ??= await tx.patients.create({
-          data: {
-            id: randomUUID(),
-            short_id: fields.patient,
-            chw_id: device.user_id,
-            full_name: STUB_PATIENT_NAME,
+        let patientId: string;
+        if (!patientSnap.empty) {
+          if (patientSnap.docs[0].data().chwId !== chwId) throw new Rejected('patient_mismatch');
+          patientId = patientSnap.docs[0].id;
+        } else {
+          // The SMS only carries the short ID; this stub is replaced when the CHW's full record arrives.
+          patientId = randomUUID();
+          const at = Timestamp.fromDate(recordedAt);
+          tx.create(fs.collection('patients').doc(patientId), {
+            shortId: fields.patient,
+            chwId,
+            healthCenterId,
+            fullName: STUB_PATIENT_NAME,
+            sex: null,
+            birthDate: null,
+            ageEstimate: null,
             village: '',
-            consent_at: recordedAt,
-            created_at: recordedAt,
-            updated_at: recordedAt,
-          },
-        });
-
-        // The internet alert or an earlier copy of this SMS may already have created the visit.
-        let visit = await tx.visits.findFirst({ where: { device_id: device.id, short_code: fields.shortCode } });
-        if (!visit) {
-          const known = await tx.danger_signs.findMany({ where: { code: { in: fields.signs } } });
-          visit = await tx.visits.create({
-            data: {
-              id: randomUUID(),
-              short_code: fields.shortCode,
-              patient_id: patient.id,
-              chw_id: device.user_id,
-              device_id: device.id,
-              type: VISIT_TYPES[fields.type],
-              answers: { signs: fields.signs, vitals: fields.vitals },
-              is_urgent: true,
-              recorded_at: recordedAt,
-              source: 'sms',
-              is_partial: true,
-              visit_danger_signs: { create: known.map((k) => ({ code: k.code })) },
-            },
+            phone: null,
+            consentAt: at,
+            createdAt: at,
+            updatedAt: at,
+            archivedAt: null,
           });
         }
-        await tx.alerts.upsert({
-          where: { visit_id: visit.id },
-          update: {},
-          create: { visit_id: visit.id, health_center_id: healthCenterId, channel: 'sms' },
+
+        if (visitSnap.empty) {
+          tx.create(fs.collection('visits').doc(id), {
+            shortCode: fields.shortCode,
+            patientId,
+            chwId,
+            healthCenterId,
+            deviceId,
+            type: VISIT_TYPES[fields.type],
+            answers: { signs: fields.signs, vitals: fields.vitals },
+            notes: null,
+            isUrgent: true,
+            dangerSigns: known.filter((k) => k.exists).map((k) => k.id),
+            followUpOn: null,
+            recordedAt: Timestamp.fromDate(recordedAt),
+            receivedAt: FieldValue.serverTimestamp(),
+            source: 'sms',
+            isPartial: true,
+          });
+        }
+        if (!alertExists) {
+          tx.create(alertRef, {
+            visitId: id,
+            chwId,
+            healthCenterId,
+            channel: 'sms',
+            status: 'new',
+            createdAt: FieldValue.serverTimestamp(),
+            ackedToChwAt: null,
+          });
+        }
+        tx.create(messageRef, {
+          direction: 'in',
+          phone: from,
+          deviceId,
+          rawText: text,
+          status: 'parsed',
+          error: null,
+          gatewayId: null,
+          visitId: id,
+          createdAt: FieldValue.serverTimestamp(),
         });
-        return visit.id;
+        if (sibling) tx.update(sibling, { status: 'parsed', visitId: id });
+        return id;
       });
     } catch (e) {
-      if (!isUniqueViolation(e) && !(e instanceof CodecError)) throw e;
-      await reject(from, text, isUniqueViolation(e) ? 'replay' : (e as CodecError).message, device.id);
+      if (!(e instanceof Rejected)) throw e;
+      await reject(from, text, e.message, deviceId);
       return void res.json({ ok: true });
     }
 
     // The alert is already stored; a failed acknowledgement is logged, not an error for the gateway.
     const ackText = `HB OK ${fields.shortCode} ${ackTag(key, fields.shortCode)}`;
-    const out = { direction: 'out', phone: from, device_id: device.id, raw_text: ackText, visit_id: visitId };
+    const out = { direction: 'out', phone: from, deviceId, rawText: ackText, visitId };
     try {
       const { gatewayId } = await sender.send(from, ackText);
-      await db.sms_messages.create({ data: { ...out, status: 'sent', gateway_id: gatewayId } });
+      await log({ ...out, status: 'sent', gatewayId });
     } catch (e) {
-      await db.sms_messages.create({ data: { ...out, status: 'failed', error: String(e).slice(0, 200) } });
+      await log({ ...out, status: 'failed', error: String(e).slice(0, 200) });
     }
     res.json({ ok: true });
   });
@@ -192,17 +226,15 @@ export function smsRouter(db: Db, sender: SmsSender) {
   router.post('/delivery', async (req, res) => {
     const { id, status } = delivery.parse(req.body);
     const delivered = status === 'Success';
-    const msg = await db.sms_messages.findFirst({ where: { direction: 'out', gateway_id: id } });
-    if (msg) {
-      await db.sms_messages.update({
-        where: { id: msg.id },
-        data: { status: delivered ? 'delivered' : 'failed', error: delivered ? null : status },
-      });
-      if (delivered && msg.visit_id) {
-        await db.alerts.updateMany({
-          where: { visit_id: msg.visit_id, acked_to_chw_at: null },
-          data: { acked_to_chw_at: new Date() },
-        });
+    const snap = await messages.where('gatewayId', '==', id).where('direction', '==', 'out').limit(1).get();
+    if (!snap.empty) {
+      const msg = snap.docs[0];
+      await msg.ref.update({ status: delivered ? 'delivered' : 'failed', error: delivered ? null : status });
+      const visitId = msg.data().visitId as string | null;
+      if (delivered && visitId) {
+        const alert = fs.collection('alerts').doc(visitId);
+        const a = (await alert.get()).data();
+        if (a && !a.ackedToChwAt) await alert.update({ ackedToChwAt: FieldValue.serverTimestamp() });
       }
     }
     res.json({ ok: true });

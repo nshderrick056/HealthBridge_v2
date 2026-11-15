@@ -11,20 +11,6 @@ jobs:
     defaults:
       run:
         working-directory: server
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: healthbridge
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/healthbridge
-      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/healthbridge
-      SEED_PIN: '4321'
-      SEED_PASSWORD: ci-only-password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,10 +18,15 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: server/package-lock.json
+      # The Firestore emulator runs on Java.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - run: npm ci
+      - run: npm install -g firebase-tools
       - run: npm run typecheck
-      - run: npm run db:migrate
-      - run: npm run db:seed
+      # Against the Firebase emulators under the offline-only project demo-healthbridge.
       - run: npm test
 
   dashboard:
