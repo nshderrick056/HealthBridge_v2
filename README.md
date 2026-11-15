@@ -1,164 +1,139 @@
 # HealthBridge Rwanda
 
-Offline-first Android app for community health workers (CHWs), with an Express API, a Next.js supervisor
-dashboard and an encrypted SMS fallback for urgent alerts. The specs are in [documents/](documents/); the
-build plan is `documents/HealthBridge Rwanda — Build Plan.md`.
+Offline-first Android app for community health workers (CHWs), their supervisors and an admin, on Firebase
+(Cloud Firestore + Firebase Auth), with a small Express server for what an app must not do and an encrypted
+SMS fallback for urgent alerts. The specs are in [documents/](documents/).
 
 ## Layout
 
 | Path | What |
 | --- | --- |
-| `lib/` | Flutter app (Android only), in layers: `presentation/` (screens from the Figma file `healthbridge-v2`, each with a Riverpod controller beside it; no `setState`), `domain/` (entities, repository interfaces, use cases), `data/` (encrypted drift database and the repositories implementing the domain interfaces). Around them: `core/` (auth, settings in SharedPreferences, SMS codec, theme tokens, shared widgets), `sync/` (outbox upload and background sync) and `urgent/` (urgent-alert pathway). Patient and Visit are drift's generated row classes, used as the domain entities rather than duplicated. |
-| `docs/ERD.md` | Entity-relationship diagram of the database, drawn from the Prisma schema. |
-| `android/` | Flavours `store` (no SMS permission, opens the SMS composer) and `managed` (sends SMS directly through the Kotlin channel in `app/src/managed/kotlin/`, no SMS plugin). |
-| `server/` | Express + TypeScript + Prisma API, tested with Vitest and Supertest. |
-| `shared/sms-vectors.json` | Test vectors that both the TypeScript and Dart SMS codecs must pass. |
-| `dashboard/` | Supervisor dashboard (Next.js + Tailwind, tested with Vitest). Talks to the API through its own route handlers, which keep the tokens in httpOnly cookies. |
-| `documents/` | PRD, TRD, Backend Schema, App Flow, Design Brief, Implementation Plan, Build Plan. |
+| `lib/` | Flutter app (Android only), in layers: `presentation/` (screens from the Figma file `healthbridge-v2`, each with a Riverpod controller beside it; no `setState`), `domain/` (entities, repository interfaces, use cases), `data/` (encrypted drift database and the repositories implementing the domain interfaces). Around them: `core/` (Firebase sign-in, API client, settings in SharedPreferences, SMS codec, theme, shared widgets), `sync/` (upload to Firestore and background sync) and `urgent/` (urgent-alert pathway). |
+| `firestore.rules`, `firestore.indexes.json` | Firestore security rules and indexes (deployed to project `healthbridge-rwanda`). |
+| `docs/ERD.md` | Entity-relationship diagram of the Firestore collections. |
+| `server/` | Express + TypeScript on the Firebase Admin SDK: PIN sign-in, accounts and resets, device keys, the SMS gateway, alert status changes. Tested with Vitest against the Firebase emulators. |
+| `dashboard/` | Supervisor web dashboard (Next.js), signing in with Firebase. |
+| `android/` | Flavours `store` (no SMS permission, opens the SMS composer) and `managed` (sends SMS itself through the Kotlin channel in `app/src/managed/kotlin/`). `app/google-services.json` is the app's public Firebase config. |
+| `shared/sms-vectors.json` | Test vectors both SMS codecs (TypeScript and Dart) must pass. |
+
+## How it works
+
+- **Roles and sign-in (Firebase Auth).** Only an admin creates accounts; self sign-up and self-delete are off in
+  Firebase. Each account carries its role (`chw`, `supervisor`, `admin`) and health centre as custom claims.
+  Three ways in: **phone + PIN** (the server checks the PIN and returns a Firebase custom token), **phone + SMS
+  code** (Firebase texts it), **email + password**. After sign-in the app opens the screens for the role.
+- **Forgot PIN or password.** The user asks in the app; the admin approves it on the Resets tab; the server texts
+  a one-time code (hashed, 30 minutes, 5 tries); the user enters it and sets a new PIN or password, and is signed
+  out everywhere else.
+- **CHW data, offline first.** Patients and visits are saved in an encrypted SQLite database (SQLCipher) with an
+  upload queue, so nothing is lost offline. When online, sync writes each change to its Firestore document as the
+  signed-in CHW, under the security rules, and pulls the CHW's patients, alert confirmations, danger signs and the
+  health centre's call number. Firestore's own (unencrypted) offline cache is off. One CHW's records per phone:
+  another CHW can only sign in once everything has uploaded.
+- **Urgent alerts.** Online, the visit and its alert go to Firestore together within 10 s. Otherwise the app sends
+  an encrypted SMS (AES-GCM, the device's own key) to the Africa's Talking number; the server decrypts it, stores a
+  partial case and replies `HB OK <code> <tag>` (HMAC-signed, so only the server can confirm). When the phone is
+  back online it uploads the full visit and the server merges the two into one case.
+- **Supervisors** see their health centre's alerts (inbox, case detail, status changes with a note, CHW list) in
+  the app or on the web dashboard. Status changes go through the server, which checks the allowed moves, records
+  who made them and texts the CHW on Escalate and Follow-up.
+- **Security rules** (`firestore.rules`): a CHW reads and writes only their own patients and visits (field by
+  field validation; a visit is urgent exactly when it has danger signs), a supervisor reads only their centre's,
+  nothing can be deleted (archive instead), and PIN hashes, device keys, reset requests and logs are server-only.
 
 ## Status
 
-| Slice | | State |
-| --- | --- | --- |
-| 0 | Bootstrap, flavours, CI | done |
-| 1 | Backend foundations: schema, seed, login, refresh | done |
-| 2 | SMS codec (TS and Dart) | done |
-| 3 | SMS round trip: `POST /devices/register`, `POST /webhooks/sms`, `/webhooks/sms/delivery`, ack SMS | done; run against the Africa's Talking sandbox (see Phone test below) |
-| 4 | Flutter data layer: encrypted drift DB, repositories, outbox, providers | done (see [lib/data/README.md](lib/data/README.md)) |
-| UI | CHW screens from Figma: login, home, patients, patient profile, record/review visit, urgent, saved, sync status (plus register-patient, alerts and profile tabs, which Figma lacks) | done; the two supervisor frames go to the web dashboard (slice 7) |
-| 5 | Sync engine: `/sync/push` (idempotent, merges SMS partial cases), `/sync/pull`, app outbox drain with back-off (`lib/sync/`) | done: while open (start, resume, connectivity, every minute) and on Android with the app closed (workmanager every 30 min once online, `lib/sync/background_sync.dart`); the SMS case merging into the full visit on reconnect is confirmed on a phone, the 20-visit reboot and closed-app runs are not |
-| 6 | Urgent pathway: `POST /alerts` (internet, 10 s), else the sealed SMS through `UrgentSender` (composer in `store`, direct send + ack receiver in `managed`); unconfirmed after 10 min with Resend and Call (`lib/urgent/`) | done; the managed build's direct send is confirmed on a real SIM |
-| 7 | Supervisor dashboard: `GET /alerts`, `GET`/`PATCH /alerts/:id`, `GET /chws` (scoped to the supervisor's health centre); `dashboard/` with login, 10 s alert inbox, case detail with status actions, CHW list | done (not yet deployed); Escalate and Follow-up also text the CHW the case code |
-| 8 | Release: Vercel entry (`server/api/`), signed builds and migrations on a `v*` tag (`.github/workflows/release.yml`), admin endpoints for real accounts | code done; needs your Vercel/Neon accounts, keystore and GitHub secrets (see Release below) |
-
-## Phone test (1 November 2026)
-
-Managed build on a Samsung (Android, real SIM), API on a laptop behind a Cloudflare quick tunnel, Africa's
-Talking sandbox, supervisor dashboard on localhost.
-
-| Step | Result |
+| Part | State |
 | --- | --- |
-| Urgent visit with Wi-Fi and mobile data off | The internet attempt failed and the app sent the sealed `HB1` SMS by itself to a second phone. The first send failed at the radio ("Failed to send", cause unknown); Resend went through. |
-| SMS into the server | Copied from the second phone into the sandbox simulator (the sandbox cannot receive real SMS). The server decrypted it, created the case (channel SMS, patient "(awaiting sync)") and the sandbox accepted the `HB OK <code>` reply. |
-| Dashboard | The case appeared in the inbox. |
-| Data back on | The phone synced within a minute; the full visit replaced the partial one (one visit, real patient name, no stub patient left). |
-| Escalate | The "case … has been escalated" SMS was sent to the CHW's number. |
+| Firebase project, rules, indexes, ERD | done, deployed |
+| Sign-in (PIN, SMS code, email), forgot flow, role screens | done, tested on a phone (15 Nov 2026) |
+| CHW app: patients (create, edit, archive), visits, sync to Firestore, settings | done, tested on a phone |
+| Urgent alert by internet; supervisor inbox, escalate with note; admin new account and reset approval | done, tested on a phone |
+| Offline SMS alert and merge on Firebase | code and server tests done; last phone run was on the Postgres version (1 Nov) |
+| Web dashboard on Firebase sign-in | done, tested by unit tests only |
+| Tests | 124 Flutter (unit, widget, layout at 3 screen sizes), 42 server (Firebase emulators), 31 dashboard |
 
-Not covered: the phone reading the `HB OK` reply by itself (the reply went to the simulator, not the phone), a
-real gateway number, 20 visits through a reboot, and background sync with the app closed.
+## Phone tests
+
+**15 November 2026, Firebase build** (managed build on a Samsung, API behind a Cloudflare tunnel, Africa's
+Talking sandbox): all three sign-in methods; a patient and visit appearing in Firestore under the CHW; forgot PIN
+from request to a working new PIN (code read in the sandbox simulator); an urgent alert reaching the supervisor's
+inbox, escalated with a note and recorded in the history; the admin creating an account. Found and fixed on the
+way: custom tokens must be signed with the key file (the IAM signing API is off in a new project), the SMS region
+policy had to allow Rwanda, and records left by an older install uploaded under the new account (now one CHW per
+phone).
+
+**1 November 2026, Postgres build**: urgent visit offline sent the sealed SMS by itself; the server decrypted it
+and created the case; back online, the full visit replaced the partial one; Escalate texted the CHW.
 
 ## Still to do
 
-- **On a phone:** 20 visits recorded offline, app killed and phone rebooted, each syncing exactly once;
-  background sync firing with the app closed; the managed build confirming from a real `HB OK` reply.
-- **SMS gateway:** the sandbox only talks to its simulator, so a hands-free test needs a live Africa's Talking
-  number (or a phone acting as a gateway).
-- **Release:** create the accounts, keystore and secrets in the Release section below, then push a `v*` tag.
-  After that, clean installs of both builds against the deployed API, checking an alert reaches the dashboard
-  within 10 s.
-- **Clinical content:** the danger-sign list and the validation ranges (`lib/data/forms/`) are placeholders
-  until a clinician confirms them.
-- **Kinyarwanda (FR-17):** app text is English and hard-coded in the screens; it needs translation files and a
-  native speaker. Danger-sign labels in the database are marked `[RW pending]`.
-- **Acks:** the server's reply is `HB OK <code> <tag>`, the tag being HMAC-SHA256 with the device's SMS key, and
-  the managed build ignores a reply whose tag does not match. Replay of a genuine reply is harmless (it only
-  confirms the same alert). Not yet checked on a phone with a live gateway.
-- **Local only:** `web/` (browser preview) and `windows/` are not committed.
-- **Before the Play upload:** workmanager adds foreground-service, wake-lock, boot and notification permissions
-  to both builds; Play may ask for a foreground-service justification.
+- **On a phone:** the offline SMS alert and merge on the Firebase build; 20 visits offline through an app kill and a
+  reboot; background sync with the app closed; the managed build confirming from a real `HB OK` reply.
+- **SMS:** the Africa's Talking sandbox only reaches its simulator. Real phones (urgent acks, reset codes, CHW
+  notices) need a live Africa's Talking number. Firebase also allows only 10 sign-in SMS a day until billing is
+  added (the test number does not count).
+- **Admin:** creating a health centre has no screen yet (`POST /admin/health-centers` works).
+- **Release:** host the API (Vercel) and dashboard, create the signing keystore and GitHub secrets (see Release).
+- **Clinical content:** the danger signs and validation ranges (`lib/data/forms/`) are placeholders until a
+  clinician confirms them. **Kinyarwanda:** app text is English; it needs translation by a native speaker.
+- **Before the Play upload:** workmanager adds foreground-service and boot permissions; Play may ask why.
 
 ## Run it
 
-Needs Flutter (stable), Node 20+ and PostgreSQL 16 or later.
+Needs Flutter (stable), Node 20+, Java 21 (for the Firebase emulators) and the Firebase CLI (`npm i -g firebase-tools`).
 
 ```bash
-# server
+# server (needs the service account key: Firebase console > Project settings > Service accounts)
 cd server
-cp .env.example .env        # fill in the secrets, see the comments in the file
+cp .env.example .env        # GOOGLE_APPLICATION_CREDENTIALS = path to the key, kept OUTSIDE the repo
 npm ci
-npm run db:migrate && npm run db:seed
-npm test
+npm test                    # starts the Firebase emulators (offline project demo-healthbridge)
+npm run seed                # demo data into the real project (SEED_PIN, SEED_PASSWORD from .env)
 npm run dev
 
-# app
+# app (API_URL: where the phone reaches the server, e.g. a Cloudflare tunnel)
 flutter pub get
 flutter test
-flutter run --flavor store --dart-define=SMS_GATEWAY_NUMBER=+2507XXXXXXXX   # or --flavor managed
-flutter run -d chrome --web-port 8080   # browser preview: keep the port fixed, browser data is stored per port
+flutter run --flavor managed --dart-define=API_URL=https://<host> --dart-define=SMS_GATEWAY_NUMBER=+2507XXXXXXXX
 
-# supervisor dashboard (needs the server running)
+# web dashboard (needs the server running)
 cd dashboard
-cp .env.example .env.local  # API_URL=http://localhost:3000
-npm ci
-npm test
+cp .env.example .env.local  # API_URL and FIREBASE_WEB_API_KEY
+npm ci && npm test
 npm run dev                 # http://localhost:3001, sign in as supervisor@example.test with SEED_PASSWORD
 ```
 
-Demo logins from `npm run db:seed`: CHWs `+250780000101`, `+250780000102`, `+250780000103` with `SEED_PIN` (in
-the app); the supervisor `supervisor@example.test` with `SEED_PASSWORD` (in the dashboard); the admin
-`admin@example.test` with `SEED_PASSWORD` (API only, below).
+Demo accounts from `npm run seed`: CHWs `+250780000101` to `103` with `SEED_PIN` (sign in with the PIN: these
+numbers are not real phones); supervisor `supervisor@example.test` and admin `admin@example.test` with
+`SEED_PASSWORD`. In the app, the admin creates further accounts (New account tab) and approves resets.
 
-Real accounts (there is no sign-up): an admin creates health centres and people over the API.
+The first real admin of a project: `ADMIN_EMAIL=... ADMIN_PHONE=+250... ADMIN_PASSWORD='12+ chars' npm run create-admin`.
 
-```bash
-# first admin of a deployment (reads DATABASE_URL/DIRECT_URL from server/.env)
-ADMIN_EMAIL=you@example.org ADMIN_PHONE=+2507XXXXXXXX ADMIN_PASSWORD='at-least-12-chars' npm run create-admin
-# then, with the admin's access token from POST /auth/login:
-#   POST /admin/health-centers {name, district, sector, callNumber?}
-#   POST /admin/users {role:"chw", fullName, phone, pin, chwRole:"asm"|"binome", village, healthCenterId}
-#   POST /admin/users {role:"supervisor", fullName, phone, email, password, healthCenterId}
-```
-
-Build both APKs and check that only the managed one asks for SMS permissions (CI does the same):
-
-```bash
-flutter build apk --debug --flavor store
-flutter build apk --debug --flavor managed
-"$ANDROID_HOME"/build-tools/<version>/aapt dump permissions build/app/outputs/flutter-apk/app-store-debug.apk
-```
-
-`android/gradle.properties` turns off Kotlin incremental builds: some plugins' caches fail when the pub cache
-(C:) and the project are on different drives.
-
-After changing a drift table, regenerate `lib/data/db.g.dart` (it is committed):
-
-```bash
-dart run build_runner build
-```
+After changing the rules: `firebase deploy --only firestore`. After changing a drift table: `dart run build_runner build`.
 
 ## SMS gateway (Africa's Talking)
 
-Point the gateway callbacks at `https://<host>/webhooks/sms?secret=<SMS_WEBHOOK_SECRET>` (inbound) and
-`https://<host>/webhooks/sms/delivery?secret=<SMS_WEBHOOK_SECRET>` (delivery reports). Set `AT_USERNAME`
-(`sandbox` for the simulator) and `AT_API_KEY` in `server/.env`. Without them alerts are still stored but
-no acknowledgement SMS is sent.
-
-The app sends urgent SMS to the gateway's number, set at build time with
-`--dart-define=SMS_GATEWAY_NUMBER=<shortcode or +250... number>` (add `--dart-define=API_URL=https://<host>`
-for a real server). Without it the `managed` build cannot send (the alert shows as unconfirmed with Resend and
-Call) and the `store` build opens the SMS app with no recipient. The Call button dials the health centre's
-`call_number`, which the phone receives on each sync.
+Point the callbacks at `https://<host>/webhooks/sms?secret=<SMS_WEBHOOK_SECRET>` (inbound) and
+`.../webhooks/sms/delivery?secret=...` (delivery reports), and set `AT_USERNAME` (`sandbox` for the simulator),
+`AT_API_KEY` and `AT_SENDER` in `server/.env`. The app sends urgent SMS to `SMS_GATEWAY_NUMBER` (set at build
+time). In the sandbox, open the simulator on a number before a message to it is sent, or it may not show.
 
 ## Release
 
-1. **Database:** create a Neon Postgres project (Vercel Marketplace). Keep its pooled URL and its direct URL.
-2. **API on Vercel:** new project, root directory `server/`. Env vars: `DATABASE_URL` (pooled), `DIRECT_URL`
-   (direct), `JWT_SECRET`, `JWT_REFRESH_SECRET`, `SMS_KEY_ENC_KEY`, `SMS_WEBHOOK_SECRET`, `AT_USERNAME`,
-   `AT_API_KEY`, `AT_SENDER`, `CORS_ORIGINS` (the dashboard URL). `server/api/index.ts` serves every path.
-3. **Dashboard on Vercel:** new project, root directory `dashboard/`, env var `API_URL` (the API URL).
-4. **First data:** from `server/` with the Neon direct URL in `.env`, run `npm run db:migrate`, then
-   `npm run create-admin` (real) or `npm run db:seed` (demo data only, never alongside real patients).
-5. **Signing key** (once; keep the file and passwords safe, a lost key means a new app listing):
-   ```bash
-   keytool -genkey -v -keystore healthbridge-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias healthbridge
-   ```
-6. **GitHub (Settings → Secrets and variables → Actions):** secrets `PROD_DIRECT_URL`,
-   `ANDROID_KEYSTORE_BASE64` (`base64 -w0 healthbridge-release.jks`), `ANDROID_KEY_ALIAS` (`healthbridge`),
-   `ANDROID_KEY_PASSWORD`, `ANDROID_STORE_PASSWORD`; variables `API_URL`, `SMS_GATEWAY_NUMBER`.
-7. **Ship:** `git tag v1.0.0 && git push origin v1.0.0`. The Release workflow migrates the database, builds the
-   signed store `.aab` and managed `.apk`, checks SMS permissions, and attaches both to a GitHub release.
+1. **API:** a Vercel project with root `server/`. Env vars: `FIREBASE_SERVICE_ACCOUNT` (the key's JSON),
+   `JWT_SECRET`, `SMS_KEY_ENC_KEY`, `SMS_WEBHOOK_SECRET`, `AT_*`, `CORS_ORIGINS` (the dashboard URL).
+2. **Dashboard:** a Vercel project with root `dashboard/`. Env vars `API_URL`, `FIREBASE_WEB_API_KEY`.
+3. **Firestore:** `firebase deploy --only firestore`; then `npm run create-admin` for the first admin.
+4. **Signing key** (once; a lost key means a new app listing):
+   `keytool -genkey -v -keystore healthbridge-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias healthbridge`.
+   Add its SHA-1 and SHA-256 to both Android apps in the Firebase console, or phone sign-in fails in release builds.
+5. **GitHub secrets:** `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`,
+   `ANDROID_STORE_PASSWORD`; variables `API_URL`, `SMS_GATEWAY_NUMBER`. Then `git tag v1.0.0 && git push origin v1.0.0`.
 
 ## Secrets
 
-This repo is public. Only `.env.example` files are committed; real values live in local `.env` files,
-Vercel and GitHub Actions secrets. Seed data is synthetic.
+This repo is public. Only `.env.example` files are committed; the service account key lives outside the repo
+(locally) or in `FIREBASE_SERVICE_ACCOUNT` (Vercel). `google-services.json` and the Firebase web API key are public
+by design: they name the project; access is controlled by Firebase Auth and the security rules. Seed data is
+synthetic.
