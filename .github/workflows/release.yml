@@ -1,9 +1,9 @@
 name: Release
 
 # Push a tag like v1.0.0 to run this. Repository settings needed (Settings → Secrets and variables → Actions):
-#   secrets: PROD_DIRECT_URL (Neon direct URL), ANDROID_KEYSTORE_BASE64, ANDROID_KEY_ALIAS,
-#            ANDROID_KEY_PASSWORD, ANDROID_STORE_PASSWORD
+#   secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, ANDROID_STORE_PASSWORD
 #   variables: API_URL (the Vercel API URL), SMS_GATEWAY_NUMBER (Africa's Talking shortcode or number)
+# Firestore has no migrations; deploy the security rules with `firebase deploy --only firestore`.
 on:
   push:
     tags: ['v*']
@@ -12,26 +12,7 @@ permissions:
   contents: write # to create the GitHub release
 
 jobs:
-  migrate:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
-    env:
-      DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
-      DATABASE_URL: ${{ secrets.PROD_DIRECT_URL }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: server/package-lock.json
-      - run: npm ci
-      - run: npm run db:migrate
-
   android:
-    needs: migrate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
