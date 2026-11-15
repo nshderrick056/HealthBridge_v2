@@ -19,8 +19,8 @@ const base = {
   secure: process.env.NODE_ENV === 'production',
   path: '/',
 };
-// The access token lives 15 min; its cookie expires a minute earlier so we refresh before the API says 401.
-const ACCESS_MAX_AGE = 14 * 60;
+// A Firebase ID token lives 60 min; its cookie expires five minutes earlier so we refresh before the API says 401.
+const ACCESS_MAX_AGE = 55 * 60;
 const REFRESH_MAX_AGE = 30 * 24 * 3600;
 
 export function setSession(res: NextResponse, s: { accessToken: string; refreshToken?: string; name?: string }) {
@@ -33,15 +33,65 @@ export function clearSession(res: NextResponse) {
   for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, NAME_COOKIE]) res.cookies.set(name, '', { ...base, maxAge: 0 });
 }
 
-/** A new access token, or null when the refresh token is expired, revoked or the user deactivated. */
-export async function refreshAccess(refreshToken: string): Promise<string | null> {
-  const res = await fetch(`${apiUrl()}/auth/refresh`, {
+// Sign-in is Firebase Auth (project healthbridge-rwanda). Its web API key is public (it is in the
+// Android app too); it identifies the project, it does not grant access.
+function firebaseKey() {
+  const key = process.env.FIREBASE_WEB_API_KEY;
+  if (!key) throw new Error('FIREBASE_WEB_API_KEY is not set');
+  return key;
+}
+
+export type FirebaseSignIn =
+  | { ok: true; idToken: string; refreshToken: string; name: string; role: string | null }
+  | { ok: false; status: number; error: string };
+
+/** Email + password sign-in with Firebase Auth. The role comes from the token's custom claims. */
+export async function firebaseSignIn(email: string, password: string): Promise<FirebaseSignIn> {
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseKey()}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+    cache: 'no-store',
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    idToken?: string;
+    refreshToken?: string;
+    displayName?: string;
+    error?: { message?: string };
+  };
+  if (!res.ok || !body.idToken || !body.refreshToken) {
+    const message = body.error?.message ?? '';
+    if (message.startsWith('TOO_MANY_ATTEMPTS')) return { ok: false, status: 429, error: 'too_many_attempts' };
+    if (message.startsWith('USER_DISABLED')) return { ok: false, status: 403, error: 'account_disabled' };
+    return { ok: false, status: 401, error: 'invalid_credentials' };
+  }
+  return {
+    ok: true,
+    idToken: body.idToken,
+    refreshToken: body.refreshToken,
+    name: body.displayName ?? '',
+    role: claimsOf(body.idToken).role ?? null,
+  };
+}
+
+/** The token's claims. Read only to choose what to show: the API verifies the token on every call. */
+function claimsOf(idToken: string): { role?: string } {
+  try {
+    return JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url').toString()) as { role?: string };
+  } catch {
+    return {};
+  }
+}
+
+/** A new ID token, or null when the refresh token is expired, revoked or the user disabled. */
+export async function refreshAccess(refreshToken: string): Promise<string | null> {
+  const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${firebaseKey()}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken }).toString(),
     cache: 'no-store',
   });
   if (!res.ok) return null;
-  const body = (await res.json()) as { accessToken?: string };
-  return body.accessToken ?? null;
+  const body = (await res.json()) as { id_token?: string };
+  return body.id_token ?? null;
 }

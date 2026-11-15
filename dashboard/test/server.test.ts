@@ -14,6 +14,10 @@ const request = (path: string, init: { method?: string; cookie?: string; body?: 
     body: init.body,
   });
 
+// A Firebase ID token's shape: only the claims matter to the dashboard (the API verifies the signature).
+const fakeIdToken = (role: string) =>
+  `h.${Buffer.from(JSON.stringify({ role })).toString('base64url')}.s`;
+
 const authHeader = (init?: RequestInit) => new Headers(init?.headers).get('authorization');
 
 describe('API proxy', () => {
@@ -41,26 +45,26 @@ describe('API proxy', () => {
 
   it('refreshes an expired access token once, retries, and stores the new token', async () => {
     const fetch = mockFetch((url, init) => {
-      if (url.endsWith('/auth/refresh')) return json({ accessToken: 'A2' });
+      if (url.includes('securetoken')) return json({ id_token: 'A2' });
       return authHeader(init) === 'Bearer A2' ? json({ chws: [] }) : json({ error: 'unauthorized' }, 401);
     });
     const res = await forward(request('/api/chws', { cookie: 'hb_access=OLD; hb_refresh=R1' }), ['chws']);
 
     expect(res.status).toBe(200);
-    expect(fetch.mock.calls.map(([u]) => u)).toEqual(['http://api.test/chws', 'http://api.test/auth/refresh', 'http://api.test/chws']);
-    expect(JSON.parse(String(fetch.mock.calls[1][1]?.body))).toEqual({ refreshToken: 'R1' });
+    expect(fetch.mock.calls.map(([u]) => u)).toEqual(['http://api.test/chws', 'https://securetoken.googleapis.com/v1/token?key=test-key', 'http://api.test/chws']);
+    expect(String(fetch.mock.calls[1][1]?.body)).toContain('refresh_token=R1');
     expect(res.cookies.get('hb_access')?.value).toBe('A2');
     expect(res.headers.get('set-cookie')).toMatch(/HttpOnly/i);
   });
 
   it('refreshes straight away when the access cookie has expired', async () => {
-    const fetch = mockFetch((url) => (url.endsWith('/auth/refresh') ? json({ accessToken: 'A2' }) : json({ chws: [] })));
+    const fetch = mockFetch((url) => (url.includes('securetoken') ? json({ id_token: 'A2' }) : json({ chws: [] })));
     await forward(request('/api/chws', { cookie: 'hb_refresh=R1' }), ['chws']);
-    expect(fetch.mock.calls.map(([u]) => u)).toEqual(['http://api.test/auth/refresh', 'http://api.test/chws']);
+    expect(fetch.mock.calls.map(([u]) => u)).toEqual(['https://securetoken.googleapis.com/v1/token?key=test-key', 'http://api.test/chws']);
   });
 
   it('ends the session when the refresh token is rejected', async () => {
-    mockFetch((url) => json({ error: url.endsWith('/auth/refresh') ? 'invalid_token' : 'unauthorized' }, 401));
+    mockFetch((url) => json({ error: url.includes('securetoken') ? 'invalid_token' : 'unauthorized' }, 401));
     const res = await forward(request('/api/chws', { cookie: 'hb_access=OLD; hb_refresh=R1' }), ['chws']);
     expect(res.status).toBe(401);
     expect(res.cookies.get('hb_refresh')?.value).toBe('');
@@ -86,7 +90,7 @@ describe('API proxy', () => {
 describe('login and logout', () => {
   const credentials = JSON.stringify({ email: 'supervisor@example.test', password: 'long-enough' });
   const loginOk = (role: string) =>
-    json({ accessToken: 'A1', refreshToken: 'R1', user: { role, fullName: 'Demo Supervisor' } });
+    json({ idToken: fakeIdToken(role), refreshToken: 'R1', displayName: 'Demo Supervisor' });
 
   it('keeps a supervisor\'s tokens in httpOnly cookies, not in the response body', async () => {
     const fetch = mockFetch(() => loginOk('supervisor'));
@@ -94,8 +98,8 @@ describe('login and logout', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ name: 'Demo Supervisor' });
-    expect(fetch.mock.calls[0][0]).toBe('http://api.test/auth/login');
-    expect(res.cookies.get('hb_access')).toMatchObject({ value: 'A1', httpOnly: true, sameSite: 'lax' });
+    expect(fetch.mock.calls[0][0]).toContain('identitytoolkit.googleapis.com');
+    expect(res.cookies.get('hb_access')).toMatchObject({ value: fakeIdToken('supervisor'), httpOnly: true, sameSite: 'lax' });
     expect(res.cookies.get('hb_refresh')).toMatchObject({ value: 'R1', httpOnly: true });
   });
 
@@ -108,7 +112,7 @@ describe('login and logout', () => {
   });
 
   it('passes the API error through and checks the body first', async () => {
-    mockFetch(() => json({ error: 'invalid_credentials' }, 401));
+    mockFetch(() => json({ error: { message: 'INVALID_LOGIN_CREDENTIALS' } }, 400));
     const bad = await login(request('/api/auth/login', { method: 'POST', body: credentials }));
     expect(bad.status).toBe(401);
     expect(await bad.json()).toEqual({ error: 'invalid_credentials' });
