@@ -265,8 +265,10 @@ AuthException _friendly(Object e) {
     'user-not-found' ||
     'invalid-email' => 'Wrong email or password.',
     // Sign-up is switched off, so an unknown number cannot make an account.
-    'admin-restricted-operation' || 'operation-not-allowed' =>
+    'admin-restricted-operation' =>
       'This phone number has no HealthBridge account. Ask your admin.',
+    // Firebase's SMS region policy does not allow this number's country (or phone sign-in is off).
+    'operation-not-allowed' => 'Sign-in by SMS code is not available for this number. Use your PIN, or ask your admin.',
     'user-disabled' => 'This account has been switched off. Ask your admin.',
     'invalid-phone-number' => 'Check the phone number.',
     'invalid-verification-code' => 'That code is not right. Check the SMS.',

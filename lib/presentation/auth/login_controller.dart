@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/settings/settings.dart';
 import '../../data/providers.dart';
+import '../../data/repositories/local_owner.dart';
 
 /// The three ways to sign in. Accounts are made by an admin; none of these creates one.
 enum LoginMethod { pin, smsCode, email }
@@ -99,6 +100,15 @@ class LoginController extends Notifier<LoginState> {
 
   Future<void> _done(String id, Session? session) async {
     if (session == null) return;
+    // Only CHWs keep records on the phone; one CHW's records never upload under another's account.
+    if (session.role == 'chw') {
+      try {
+        await LocalOwner(ref.read(databaseProvider)).claim(session.userId);
+      } on LocalDataInUse catch (e) {
+        await _auth.logout();
+        throw AuthException(e.toString());
+      }
+    }
     await ref.read(settingsProvider.notifier).loggedInAs(id);
     ref.read(sessionProvider.notifier).state = session;
   }

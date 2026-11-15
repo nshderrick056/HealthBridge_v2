@@ -1,11 +1,13 @@
 import 'dart:convert';
 
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:health_bridge/core/auth/auth_service.dart';
 import 'package:health_bridge/core/settings/settings.dart';
+import 'package:health_bridge/data/db.dart';
 import 'package:health_bridge/data/models.dart';
 import 'package:health_bridge/data/providers.dart';
 import 'package:health_bridge/presentation/auth/login_controller.dart';
@@ -27,6 +29,9 @@ void main() {
             await SharedPreferences.getInstance(),
           ),
           if (auth != null) authServiceProvider.overrideWithValue(auth),
+          databaseProvider.overrideWithValue(
+            AppDatabase(NativeDatabase.memory()),
+          ),
         ],
       );
 
