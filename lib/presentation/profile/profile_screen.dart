@@ -15,7 +15,13 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final name = ref.watch(sessionProvider)?.fullName ?? '';
+    final session = ref.watch(sessionProvider);
+    final name = session?.fullName ?? '';
+    final roleLabel = switch (session?.role) {
+      'supervisor' => 'Supervisor',
+      'admin' => 'Administrator',
+      _ => 'Community Health Worker',
+    };
     return PageBody(
       children: [
         const PageHeader(title: 'Profile', subtitle: 'Your account'),
@@ -40,7 +46,7 @@ class ProfileScreen extends ConsumerWidget {
                   children: [
                     Text(name, style: HbText.headingSmall),
                     const SizedBox(height: 3),
-                    Text('Community Health Worker', style: HbText.bodySmall),
+                    Text(roleLabel, style: HbText.bodySmall),
                   ],
                 ),
               ),

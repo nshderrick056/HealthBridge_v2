@@ -24,6 +24,14 @@ export function adminRouter(fb: Fb, sender: SmsSender) {
   const router = Router();
   router.use(requireUser(fb), requireRole('admin'));
 
+  /** For the new-account form's health centre picker, by name. */
+  router.get('/health-centers', async (_req, res) => {
+    const snap = await fb.fs.collection('healthCenters').get();
+    const centres = snap.docs.map((d) => ({ id: d.id, name: d.data().name as string, district: d.data().district ?? null }));
+    centres.sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ centres });
+  });
+
   router.post('/health-centers', async (req, res) => {
     const b = centreBody.parse(req.body);
     const ref = await fb.fs.collection('healthCenters').add({

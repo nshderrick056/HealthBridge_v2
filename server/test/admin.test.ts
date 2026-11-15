@@ -43,6 +43,13 @@ describe('admin accounts (no self sign-up)', () => {
     expect(claimsOf(await exchange(login.body.customToken))).toMatchObject({ role: 'chw', hc });
   });
 
+  it('lists health centres by name for the account form', async () => {
+    const res = await request(app).get('/admin/health-centers').set('authorization', adminToken).expect(200);
+    const names = res.body.centres.map((c: { name: string }) => c.name);
+    expect(names).toEqual([...names].sort((a: string, b: string) => a.localeCompare(b)));
+    expect(res.body.centres).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'hc-a', name: 'Centre hc-a' })]));
+  });
+
   it('creates a supervisor with an email + password Firebase account and role claims', async () => {
     const res = await post('/admin/users', {
       role: 'supervisor',

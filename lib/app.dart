@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'data/providers.dart';
 import 'presentation/auth/login_screen.dart';
 import 'presentation/shell/app_shell.dart';
+import 'presentation/shell/role_shells.dart';
 import 'sync/sync_service.dart';
 import 'urgent/urgent_service.dart';
 
@@ -26,7 +27,6 @@ class _HealthBridgeAppState extends ConsumerState<HealthBridgeApp> {
 
   @override
   Widget build(BuildContext context) {
-    final signedIn = ref.watch(sessionProvider) != null;
     final textScale = ref.watch(settingsProvider).textSize.scale;
     return MaterialApp(
       title: 'HealthBridge',
@@ -48,9 +48,13 @@ class _HealthBridgeAppState extends ConsumerState<HealthBridgeApp> {
           if (snap.connectionState != ConnectionState.done) {
             return const Scaffold(body: SizedBox.shrink());
           }
-          return signedIn
-              ? const SyncTriggers(child: UrgentWatcher(child: AppShell()))
-              : const LoginScreen();
+          // Each role gets its own screens; only CHWs record visits, sync and send urgent alerts.
+          return switch (ref.watch(sessionProvider)?.role) {
+            null => const LoginScreen(),
+            'supervisor' => const SupervisorShell(),
+            'admin' => const AdminShell(),
+            _ => const SyncTriggers(child: UrgentWatcher(child: AppShell())),
+          };
         },
       ),
     );

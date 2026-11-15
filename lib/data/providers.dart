@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../core/api/api_client.dart';
 import '../core/auth/auth_service.dart';
+import 'repositories/supervision_repository.dart';
 import '../domain/usecases/patient_use_cases.dart';
 import '../domain/usecases/record_visit.dart';
 import 'db.dart';
@@ -31,6 +33,21 @@ final dangerSignsRepositoryProvider = Provider(
 );
 final urgentRepositoryProvider = Provider(
   (ref) => UrgentRepository(ref.watch(databaseProvider)),
+);
+
+/// The HealthBridge API as the signed-in user (supervisor and admin screens).
+final apiClientProvider = Provider(
+  (ref) => ApiClient(
+    auth: ref.watch(authServiceProvider),
+    session: () => ref.read(sessionProvider),
+    onSession: (s) => ref.read(sessionProvider.notifier).state = s,
+  ),
+);
+final supervisionRepositoryProvider = Provider(
+  (ref) => SupervisionRepository(ref.watch(apiClientProvider)),
+);
+final adminRepositoryProvider = Provider(
+  (ref) => AdminRepository(ref.watch(apiClientProvider)),
 );
 
 /// Domain use cases, wired to this layer's repositories (the domain only knows the interfaces).
