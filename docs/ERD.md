@@ -1,161 +1,158 @@
-# HealthBridge ERD
+# HealthBridge ERD (Cloud Firestore)
 
-Drawn from the live schema, [server/prisma/schema.prisma](../server/prisma/schema.prisma) (PostgreSQL), so it
-matches the implemented database: same tables, column names, keys and relationships. GitHub renders the
-Mermaid diagram below; paste it into [mermaid.live](https://mermaid.live) to export a PNG for the report.
+The database is Cloud Firestore, project `healthbridge-rwanda`, location `africa-south1`. Each box below is a
+top-level collection (or a subcollection, marked); field names are exactly those stored and checked by
+[firestore.rules](../firestore.rules). Paste the diagram into [mermaid.live](https://mermaid.live) to export a
+PNG for the report.
 
-`PK` primary key, `FK` foreign key, `UK` unique. CHECK constraints (in the migration SQL) are noted in comments.
+`PK` is the document ID, `FK` a field holding another document's ID. Firestore has no joins or foreign-key
+constraints; the relationships are kept by the app and the server and checked by the security rules (for
+example, a visit may only point at a patient owned by the same CHW).
 
 ```mermaid
 erDiagram
-    health_centers ||--o{ users : "employs"
-    health_centers ||--o{ alerts : "receives"
-    users ||--o{ devices : "registers"
-    users ||--o{ patients : "cares for (chw)"
-    users ||--o{ visits : "records (chw)"
-    users |o--o{ alert_events : "acts on (actor)"
-    users |o--o{ audit_log : "acts (actor)"
-    patients ||--o{ visits : "has"
-    devices ||--o{ visits : "sent from"
-    devices |o--o{ sms_messages : "sends / receives"
-    visits ||--o{ visit_danger_signs : "ticks"
-    danger_signs ||--o{ visit_danger_signs : "ticked as"
-    visits ||--o| alerts : "raises (if urgent)"
-    visits |o--o{ sms_messages : "carried by"
-    alerts ||--o{ alert_events : "history"
+    healthCenters ||--o{ users : "employs (healthCenterId)"
+    healthCenters ||--o{ patients : "serves (healthCenterId)"
+    healthCenters ||--o{ alerts : "receives (healthCenterId)"
+    users ||--o{ patients : "cares for (chwId)"
+    users ||--o{ visits : "records (chwId)"
+    users ||--o{ devices : "registers (userId)"
+    users ||--|| credentials : "PIN (server only)"
+    patients ||--o{ visits : "has (patientId)"
+    devices ||--o{ visits : "sent from (deviceId)"
+    devices ||--|| deviceKeys : "SMS key (server only)"
+    visits ||--o| alerts : "raises if urgent (same ID)"
+    alerts ||--o{ events : "status history (subcollection)"
+    dangerSigns ||--o{ visits : "ticked in (dangerSigns[])"
+    users ||--o{ resetRequests : "asks for a reset (server only)"
 
-    health_centers {
-        uuid id PK
-        text name
-        text district
-        text sector
-        text call_number "nullable, the Call fallback"
+    healthCenters {
+        string id PK
+        string name
+        string district
+        string sector
+        string callNumber "nullable, the Call fallback"
     }
     users {
-        uuid id PK
-        user_role role "chw | supervisor | admin"
-        chw_role chw_role "nullable, asm | binome"
-        text full_name
-        text phone UK
-        text email UK "nullable"
-        text secret_hash "argon2id of PIN or password"
-        uuid health_center_id FK "nullable"
-        text village "nullable"
-        text language "default rw"
-        boolean active
-        smallint failed_logins
-        timestamptz locked_until "nullable"
-        timestamptz created_at
-    }
-    devices {
-        text id PK "short, e.g. D0042, sent in SMS"
-        uuid user_id FK
-        bytea sms_key "AES key, encrypted at rest"
-        text sim_phone "nullable"
-        text build_flavor "store | managed"
-        timestamptz last_sync_at "nullable"
-        timestamptz revoked_at "nullable"
+        string id PK "Firebase Auth UID"
+        string role "chw | supervisor | admin (also a custom claim)"
+        string chwRole "nullable, asm | binome"
+        string fullName
+        string phone "E.164, unique"
+        string email "nullable, unique"
+        string healthCenterId FK "nullable for admins (also a custom claim)"
+        string village "nullable"
+        string language "en | rw"
+        bool active
+        timestamp createdAt
     }
     patients {
-        uuid id PK "generated on the phone"
-        text short_id UK "e.g. P3FA9C1, safe for SMS"
-        uuid chw_id FK
-        text full_name
-        char sex "nullable, F | M"
-        date birth_date "nullable"
-        smallint age_estimate "nullable"
-        text village
-        text phone "nullable"
-        timestamptz consent_at
-        timestamptz created_at
-        timestamptz updated_at "last write wins"
-        timestamptz archived_at "nullable, the app's delete"
+        string id PK "UUID made on the phone"
+        string shortId "e.g. P3FA9C1, safe for SMS"
+        string chwId FK
+        string healthCenterId FK
+        string fullName
+        string sex "nullable, F | M"
+        timestamp birthDate "nullable"
+        int ageEstimate "nullable, 0-130"
+        string village
+        string phone "nullable"
+        timestamp consentAt
+        timestamp createdAt
+        timestamp updatedAt
+        timestamp archivedAt "nullable, the app's delete"
     }
     visits {
-        uuid id PK "generated on the phone"
-        text short_code "UK with device_id, first 8 hex of id"
-        uuid patient_id FK
-        uuid chw_id FK
-        text device_id FK
-        visit_type type "maternal | child | malaria | nutrition"
-        jsonb answers
-        text notes "nullable"
-        boolean is_urgent
-        date follow_up_on "nullable"
-        timestamptz recorded_at "phone clock"
-        timestamptz received_at
-        text source "sync | sms"
-        boolean is_partial "true until the full record syncs"
+        string id PK "UUID made on the phone"
+        string shortCode "first 8 hex of id, used in SMS"
+        string patientId FK
+        string chwId FK
+        string healthCenterId FK
+        string deviceId FK
+        string type "maternal | child | malaria | nutrition"
+        map answers
+        string notes "nullable"
+        bool isUrgent "true exactly when dangerSigns is not empty"
+        array dangerSigns "codes, FK to dangerSigns"
+        timestamp followUpOn "nullable"
+        timestamp recordedAt "phone clock"
+        timestamp receivedAt "server time"
+        string source "app | sms"
+        bool isPartial "true for an SMS case until the full visit syncs"
     }
-    danger_signs {
-        char code PK "e.g. HB heavy bleeding"
-        visit_type visit_type
-        text label_en
-        text label_rw
-    }
-    visit_danger_signs {
-        uuid visit_id PK,FK
-        char code PK,FK
+    dangerSigns {
+        string id PK "code, e.g. HB heavy bleeding"
+        string visitType
+        string labelEn
+        string labelRw
     }
     alerts {
-        uuid id PK
-        uuid visit_id FK,UK "one alert per visit"
-        uuid health_center_id FK
-        text channel "internet | sms"
-        alert_status status "new | reviewed | escalated | follow_up | resolved"
-        timestamptz acked_to_chw_at "nullable"
-        timestamptz created_at
+        string id PK "= the visit's ID"
+        string visitId FK
+        string chwId FK
+        string healthCenterId FK
+        string channel "internet | sms"
+        string status "new | reviewed | escalated | follow_up | resolved"
+        timestamp createdAt
+        timestamp ackedToChwAt "nullable"
     }
-    alert_events {
-        bigint id PK
-        uuid alert_id FK
-        uuid actor_id FK "nullable"
-        alert_status from_status "nullable"
-        alert_status to_status
-        text note "nullable"
-        timestamptz created_at
+    events {
+        string id PK
+        string actorId FK "nullable"
+        string fromStatus "nullable"
+        string toStatus
+        string note "nullable"
+        timestamp createdAt
     }
-    sms_messages {
-        bigint id PK
-        text direction "in | out"
-        text phone
-        text device_id FK "nullable, UK with nonce"
-        bytea nonce "nullable, blocks replays"
-        text raw_text
-        text status "parsed | rejected | part | sent | delivered | failed"
-        text error "nullable"
-        text gateway_id "nullable"
-        uuid visit_id FK "nullable"
-        timestamptz created_at
+    devices {
+        string id PK "short, e.g. D0042, sent in SMS"
+        string userId FK
+        string buildFlavor "store | managed"
+        timestamp lastSyncAt "nullable"
+        timestamp revokedAt "nullable"
     }
-    audit_log {
-        bigint id PK
-        uuid actor_id FK "nullable"
-        text action "e.g. patient.update, patient.archive"
-        text entity
-        text entity_id
-        timestamptz created_at
+    deviceKeys {
+        string id PK "= device ID"
+        bytes smsKey "AES key, wrapped with the server's key"
+    }
+    credentials {
+        string id PK "= user ID"
+        string pinHash "argon2id"
+        int failedLogins
+        timestamp lockedUntil "nullable"
+    }
+    resetRequests {
+        string id PK
+        string userId FK
+        string status "pending | approved | used | expired"
+        string codeHash "nullable, argon2id of the one-time code"
+        int attempts
+        timestamp createdAt
+        timestamp expiresAt "nullable"
     }
 ```
 
+Server-only collections (no app can read or write them; only the Express server through the Admin SDK):
+`credentials`, `deviceKeys`, `resetRequests`, and the logs `smsMessages` and `auditLog`.
+
 ## How the data is organised
 
-- **One health centre, many people.** A supervisor and CHWs belong to a health centre; a supervisor only sees
-  alerts for their own centre (enforced in the API, [server/src/supervisor/routes.ts](../server/src/supervisor/routes.ts)).
-- **A CHW owns their patients and visits.** `patients.chw_id` and `visits.chw_id`; sync refuses a change to
-  another CHW's record.
-- **IDs are made on the phone.** Patients and visits get a UUID offline, so a retried upload is recognised and
-  stored once.
-- **An urgent visit raises one alert** (`alerts.visit_id` is unique), whether it arrived over the internet or
-  by SMS; `alert_events` keeps every status change and who made it.
-- **SMS log.** Every SMS in or out is in `sms_messages`; `(device_id, nonce)` is unique so a replayed SMS is
-  refused.
-- **Nothing is deleted.** Archiving sets `patients.archived_at`; `audit_log` records creates, updates and
-  archives.
+- **Ownership is on every record.** Patients, visits and alerts carry `chwId` and `healthCenterId`, so the
+  rules can check access on the document itself: a CHW reads and writes only their own, a supervisor reads
+  their health centre's.
+- **Roles live in the sign-in token.** The server sets `role` and `hc` as Firebase Auth custom claims when an
+  admin creates the account; the rules read them from `request.auth.token`, so a user cannot raise their own
+  access.
+- **IDs are made on the phone.** A patient or visit gets a UUID offline; a write repeated after a dropped
+  connection lands on the same document instead of creating a second one.
+- **One alert per urgent visit.** The alert's document ID is the visit's ID. The phone creates the internet
+  alert; an alert that arrives by SMS is created by the server. Status changes go through the server, which
+  checks the allowed transitions, writes an `events` document and texts the CHW.
+- **Nothing is deleted.** Archiving sets `patients.archivedAt`; the rules refuse deletes.
+- **Secrets stay on the server.** PIN hashes, device SMS keys and reset codes are in collections the rules
+  close to every app.
 
-## On the phone
+## Indexes
 
-The app keeps its own encrypted SQLite copy (drift, [lib/data/db.dart](../lib/data/db.dart)): `patients`,
-`visits` and `visit_danger_signs` mirror the tables above, plus phone-only tables: `outbox` (changes waiting to
-upload), `urgent_dispatch` (each urgent alert's SMS state), `drafts` (half-filled forms), `sync_meta` and a copy
-of `danger_signs`.
+[firestore.indexes.json](../firestore.indexes.json): alerts by health centre, status and time (the supervisor
+inbox), alerts by health centre and time, visits by CHW and time, users by health centre and role.

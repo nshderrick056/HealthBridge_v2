@@ -1,0 +1,149 @@
+rules_version = '2';
+
+// HealthBridge Firestore security rules. Roles come from Firebase Auth custom claims that only the
+// server (Admin SDK) can set when an admin creates the account:
+//   role: 'chw' | 'supervisor' | 'admin'      hc: the user's health centre ID
+// The server's Admin SDK bypasses these rules; everything an app does is checked here.
+// See docs/ERD.md for the collections and fields.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function role() { return request.auth.token.role; }
+    function hc() { return request.auth.token.hc; }
+    function isChw() { return signedIn() && role() == 'chw'; }
+    function isSupervisor() { return signedIn() && role() == 'supervisor'; }
+    function isAdmin() { return signedIn() && role() == 'admin'; }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    // A field that must not change on update.
+    function same(field) { return incoming().get(field, null) == existing().get(field, null); }
+    function optString(field, max) {
+      return !(field in incoming()) || incoming()[field] == null
+        || (incoming()[field] is string && incoming()[field].size() <= max);
+    }
+
+    // ---- Reference data: read by any signed-in user, written only by the server ----
+
+    match /healthCenters/{id} {
+      allow read: if isAdmin() || (signedIn() && hc() == id);
+      allow write: if false;
+    }
+
+    match /dangerSigns/{code} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Profiles hold no secrets (PIN hashes live in the server-only `credentials` collection).
+    match /users/{userId} {
+      allow read: if signedIn() && (
+        uid() == userId
+        || isAdmin()
+        || (isSupervisor() && existing().healthCenterId == hc())
+      );
+      allow write: if false;
+    }
+
+    // A CHW's own registered phone (its SMS key is in the server-only `deviceKeys`).
+    match /devices/{deviceId} {
+      allow read: if signedIn() && existing().userId == uid();
+      allow write: if false;
+    }
+
+    // ---- Patients: a CHW's own, readable by their health centre's supervisor ----
+
+    function validPatient() {
+      let p = incoming();
+      return p.keys().hasOnly([
+          'shortId', 'chwId', 'healthCenterId', 'fullName', 'sex', 'birthDate', 'ageEstimate',
+          'village', 'phone', 'consentAt', 'createdAt', 'updatedAt', 'archivedAt'])
+        && p.keys().hasAll(['shortId', 'chwId', 'healthCenterId', 'fullName', 'village',
+          'consentAt', 'createdAt', 'updatedAt'])
+        && p.shortId is string && p.shortId.matches('^[A-Z0-9]{2,10}$')
+        && p.fullName is string && p.fullName.size() > 0 && p.fullName.size() <= 200
+        && p.village is string && p.village.size() <= 200
+        && (!('sex' in p) || p.sex == null || p.sex in ['F', 'M'])
+        && (!('ageEstimate' in p) || p.ageEstimate == null
+            || (p.ageEstimate is int && p.ageEstimate >= 0 && p.ageEstimate <= 130))
+        && optString('phone', 30)
+        && p.consentAt is timestamp && p.createdAt is timestamp && p.updatedAt is timestamp
+        && (!('archivedAt' in p) || p.archivedAt == null || p.archivedAt is timestamp);
+    }
+
+    match /patients/{patientId} {
+      allow read: if (isChw() && existing().chwId == uid())
+        || (isSupervisor() && existing().healthCenterId == hc());
+      allow create: if isChw() && validPatient()
+        && incoming().chwId == uid() && incoming().healthCenterId == hc();
+      // Edits and archiving; owner, centre, short ID and creation time never change.
+      allow update: if isChw() && existing().chwId == uid() && validPatient()
+        && same('chwId') && same('healthCenterId') && same('shortId') && same('createdAt');
+      allow delete: if false; // archive instead (archivedAt); health records are kept
+    }
+
+    // ---- Visits: recorded by the CHW, read by their supervisor ----
+
+    function validVisit(visitId) {
+      let v = incoming();
+      return v.keys().hasOnly([
+          'shortCode', 'patientId', 'chwId', 'healthCenterId', 'deviceId', 'type', 'answers',
+          'notes', 'isUrgent', 'dangerSigns', 'followUpOn', 'recordedAt', 'receivedAt', 'source',
+          'isPartial'])
+        && v.shortCode is string && v.shortCode == visitId[0:8]
+        && v.type in ['maternal', 'child', 'malaria', 'nutrition']
+        && v.answers is map
+        && optString('notes', 5000)
+        && v.dangerSigns is list && v.dangerSigns.size() <= 30
+        // Urgent exactly when a danger sign is ticked, so the app cannot get the two out of step.
+        && v.isUrgent == (v.dangerSigns.size() > 0)
+        && v.recordedAt is timestamp
+        && v.source == 'app' && v.isPartial == false
+        // The patient must be this CHW's own.
+        && getAfter(/databases/$(database)/documents/patients/$(v.patientId)).data.chwId == uid();
+    }
+
+    match /visits/{visitId} {
+      allow read: if (isChw() && existing().chwId == uid())
+        || (isSupervisor() && existing().healthCenterId == hc());
+      allow create: if isChw() && validVisit(visitId)
+        && incoming().chwId == uid() && incoming().healthCenterId == hc();
+      // The CHW owns the content; owner, centre and patient never change.
+      allow update: if isChw() && existing().chwId == uid() && validVisit(visitId)
+        && same('chwId') && same('healthCenterId') && same('patientId') && same('shortCode');
+      allow delete: if false;
+    }
+
+    // ---- Alerts: one per urgent visit (document ID = visit ID) ----
+    // The phone raises the internet alert itself; status changes go through the server, which
+    // checks the allowed transitions, writes the event and texts the CHW.
+
+    match /alerts/{visitId} {
+      allow read: if (isChw() && existing().chwId == uid())
+        || (isSupervisor() && existing().healthCenterId == hc());
+      allow create: if isChw()
+        && incoming().keys().hasOnly(['visitId', 'chwId', 'healthCenterId', 'channel', 'status',
+          'createdAt'])
+        && incoming().visitId == visitId
+        && incoming().chwId == uid() && incoming().healthCenterId == hc()
+        && incoming().channel == 'internet' && incoming().status == 'new'
+        && getAfter(/databases/$(database)/documents/visits/$(visitId)).data.chwId == uid()
+        && getAfter(/databases/$(database)/documents/visits/$(visitId)).data.isUrgent == true;
+      allow update, delete: if false;
+
+      match /events/{eventId} {
+        allow read: if isSupervisor()
+          && get(/databases/$(database)/documents/alerts/$(visitId)).data.healthCenterId == hc();
+        allow write: if false;
+      }
+    }
+
+    // Server-only: credentials, deviceKeys, smsMessages, auditLog, resetRequests, and anything
+    // not listed above. No app can read or write them.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
