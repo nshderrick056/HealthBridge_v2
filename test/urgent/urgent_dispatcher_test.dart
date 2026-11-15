@@ -18,6 +18,39 @@ import 'package:http/testing.dart';
 
 enum Net { up, down, hang, error }
 
+/// Stands in for the Firestore batch: records what the internet alert would write, or fails like a
+/// dropped connection, a hung one, or a refused write.
+class _FakeEngine extends SyncEngine {
+  _FakeEngine({
+    required super.db,
+    required super.auth,
+    required super.session,
+    required this.net,
+    required this.posts,
+  }) : super(onSession: (_) {});
+
+  final Net Function() net;
+  final List<Map<String, dynamic>> posts;
+
+  @override
+  Future<void> raiseInternetAlert(
+    Map<String, dynamic> visit,
+    Map<String, dynamic>? patient, {
+    required Duration timeout,
+  }) async {
+    switch (net()) {
+      case Net.down:
+        throw http.ClientException('no network');
+      case Net.hang:
+        await Completer<void>().future.timeout(timeout);
+      case Net.error:
+        throw StateError('permission-denied');
+      case Net.up:
+        posts.add({'visit': visit, 'patient': patient});
+    }
+  }
+}
+
 class FakeSender extends UrgentSender {
   bool fail = false;
   final sent = <(String, List<String>)>[];
@@ -65,33 +98,21 @@ void main() {
     clock = DateTime.utc(2026, 10, 6, 19, 14);
     net = Net.up;
     alertPosts = [];
-    final client = MockClient((req) async {
-      switch (net) {
-        case Net.down:
-          throw http.ClientException('no network');
-        case Net.hang:
-          return Completer<http.Response>().future;
-        case Net.error:
-          return http.Response('{"error":"internal_error"}', 500);
-        case Net.up:
-          alertPosts.add(jsonDecode(req.body) as Map<String, dynamic>);
-          return http.Response('{"alert":{"status":"new"}}', 200);
-      }
-    });
+    final client = MockClient((_) async => http.Response('', 404));
     const session = Session(
       accessToken: 'access-1',
-      refreshToken: 'refresh-1',
       userId: 'u1',
       fullName: 'Test CHW',
+      healthCenterId: 'hc-1',
     );
     dispatcher = UrgentDispatcher(
       db: db,
-      engine: SyncEngine(
+      engine: _FakeEngine(
         db: db,
         auth: AuthService(client: client, baseUrl: 'http://api.test'),
         session: () => session,
-        onSession: (_) {},
-        client: client,
+        net: () => net,
+        posts: alertPosts,
       ),
       sender: sender,
       gatewayNumber: '+250780000500',
@@ -142,7 +163,6 @@ void main() {
     expect(d.confirmedAt, isNotNull);
     expect(sender.sent, isEmpty);
     final body = alertPosts.single;
-    expect(body['deviceId'], 'D000042');
     expect(body['visit'], containsPair('id', v.id));
     expect(body['visit'], containsPair('is_urgent', true));
     expect(body['visit'], containsPair('danger_signs', ['HB']));

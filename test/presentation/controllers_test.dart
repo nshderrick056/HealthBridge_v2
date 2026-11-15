@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:health_bridge/core/auth/auth_service.dart';
 import 'package:health_bridge/core/settings/settings.dart';
 import 'package:health_bridge/data/models.dart';
@@ -73,16 +74,16 @@ void main() {
   });
 
   group('login', () {
+    // POST /auth/pin answers with a custom token; Firebase (mocked) signs in with it.
     AuthService auth(int status) => AuthService(
       baseUrl: 'http://api.test',
+      auth: MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1', displayName: 'Claudine Mukamana'),
+      ),
       client: MockClient(
         (_) async => http.Response(
           status == 200
-              ? jsonEncode({
-                  'accessToken': 'a',
-                  'refreshToken': 'r',
-                  'user': {'id': 'u1', 'fullName': 'Claudine Mukamana'},
-                })
+              ? jsonEncode({'customToken': 'custom-token'})
               : '{"error":"invalid_credentials"}',
           status,
         ),
@@ -96,7 +97,10 @@ void main() {
           .read(loginControllerProvider.notifier)
           .submit('+250780000101', '0000');
 
-      expect(c.read(loginControllerProvider).error, 'Wrong ID or password.');
+      expect(
+        c.read(loginControllerProvider).error,
+        'Wrong phone number or PIN.',
+      );
       expect(c.read(loginControllerProvider).busy, isFalse);
       expect(c.read(sessionProvider), isNull);
     });

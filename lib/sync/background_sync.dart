@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'dart:ui' show DartPluginRegistrant;
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:workmanager/workmanager.dart';
 
@@ -34,7 +35,11 @@ Future<void> cancelBackgroundSync() async {
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   DartPluginRegistrant.ensureInitialized();
-  Workmanager().executeTask((_, _) => backgroundSync());
+  Workmanager().executeTask((_, _) async {
+    // This isolate starts cold: Firebase must be set up again to find the signed-in user.
+    if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+    return backgroundSync();
+  });
 }
 
 /// One sync in the WorkManager isolate, with the saved session and the encrypted database. Always

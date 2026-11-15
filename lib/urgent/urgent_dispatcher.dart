@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import '../core/sms/codec.dart';
 import '../data/db.dart';
 import '../data/models.dart';
@@ -129,23 +127,22 @@ class UrgentDispatcher {
   Future<void> confirm(String visitId) =>
       _repo.updateState(visitId, DispatchState.confirmed);
 
+  /// The internet channel: patient, visit and alert written to Firestore together.
   Future<void> _postAlert(String visitId) async {
     if (engine.session() == null) {
       throw const UrgentSendException('signed out');
     }
     final (visit, patient, signs) = await _load(visitId);
-    final res = await engine.send(
-      'POST',
-      '/alerts',
-      body: {
-        'deviceId': await engine.deviceId(),
-        'visit': visitPayload(visit, signs),
-        'patient': patientPayload(patient),
-      },
-      timeout: internetTimeout,
-    );
-    if (res.statusCode != 200) {
-      throw http.ClientException('alert refused (${res.statusCode})');
+    try {
+      await engine.raiseInternetAlert(
+        visitPayload(visit, signs),
+        // The patient may still be in the outbox (registered offline minutes ago), so it rides along.
+        patientPayload(patient),
+        timeout: internetTimeout,
+      );
+    } on Object catch (e) {
+      // Firestore errors, timeouts and a failed device registration all mean: use SMS.
+      throw UrgentSendException('internet alert failed: $e');
     }
   }
 

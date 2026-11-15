@@ -85,7 +85,6 @@ void main() {
       sessionProvider.overrideWith(
         (ref) => const Session(
           accessToken: 'a',
-          refreshToken: 'r',
           userId: 'u1',
           fullName: 'Claudine Mukamana',
         ),

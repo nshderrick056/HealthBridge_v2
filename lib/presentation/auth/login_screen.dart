@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/settings/settings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../patients/patients_screen.dart';
+import 'forgot_screen.dart';
 import 'login_controller.dart';
 
 /// Stateful only to own the text controllers; the busy and error state live in [LoginController].
@@ -28,21 +30,128 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  String? _required(String? v) =>
-      (v == null || v.trim().isEmpty) ? 'Required' : null;
+  LoginController get _controller => ref.read(loginControllerProvider.notifier);
 
-  void _submit() {
+  void _submit(LoginState login) {
     if (!_form.currentState!.validate()) return;
-    ref.read(loginControllerProvider.notifier).submit(_id.text, _secret.text);
+    if (login.method != LoginMethod.smsCode) {
+      _controller.submit(_id.text, _secret.text);
+    } else if (login.awaitingCode) {
+      _controller.confirmCode(_id.text, _secret.text);
+    } else {
+      _controller.sendCode(_id.text);
+    }
+  }
+
+  void _choose(LoginMethod method) {
+    _secret.clear();
+    _controller.choose(method);
   }
 
   @override
   Widget build(BuildContext context) {
     final login = ref.watch(loginControllerProvider);
-    return _layout(login.busy, login.error);
+    return _layout(login);
   }
 
-  Widget _layout(bool busy, String? error) => Scaffold(
+  /// The fields and button for the chosen way of signing in.
+  List<Widget> _fields(LoginState login) {
+    final busy = login.busy;
+    final (idField, secretField, action, busyLabel) = switch (login.method) {
+      LoginMethod.pin => (
+        HbTextField(
+          label: 'Phone number',
+          hint: 'e.g. 0788 123 456',
+          icon: Icons.phone_outlined,
+          controller: _id,
+          keyboardType: TextInputType.phone,
+          validator: validatePhone,
+        ),
+        HbTextField(
+          label: 'PIN',
+          hint: '4 to 6 digits',
+          icon: Icons.lock_outline,
+          controller: _secret,
+          obscure: true,
+          keyboardType: TextInputType.number,
+          validator: validatePin,
+        ),
+        'Log in',
+        'Logging in...',
+      ),
+      LoginMethod.email => (
+        HbTextField(
+          label: 'Email',
+          hint: 'you@example.org',
+          icon: Icons.mail_outline,
+          controller: _id,
+          keyboardType: TextInputType.emailAddress,
+          validator: validateEmail,
+        ),
+        HbTextField(
+          label: 'Password',
+          hint: 'Enter your password',
+          icon: Icons.lock_outline,
+          controller: _secret,
+          obscure: true,
+          validator: validatePassword,
+        ),
+        'Log in',
+        'Logging in...',
+      ),
+      LoginMethod.smsCode => (
+        HbTextField(
+          label: 'Phone number',
+          hint: 'e.g. 0788 123 456',
+          icon: Icons.phone_outlined,
+          controller: _id,
+          keyboardType: TextInputType.phone,
+          validator: validatePhone,
+        ),
+        login.awaitingCode
+            ? HbTextField(
+                label: 'Code from the SMS',
+                hint: '6 digits',
+                icon: Icons.sms_outlined,
+                controller: _secret,
+                keyboardType: TextInputType.number,
+                validator: validateCode,
+              )
+            : null,
+        login.awaitingCode ? 'Log in' : 'Send code',
+        login.awaitingCode ? 'Logging in...' : 'Sending...',
+      ),
+    };
+    return [
+      idField,
+      if (secretField != null) ...[const SizedBox(height: 16), secretField],
+      if (login.error != null) ...[
+        const SizedBox(height: 12),
+        Text(
+          login.error!,
+          style: HbText.bodySmall.copyWith(color: HbColors.red),
+        ),
+      ],
+      const SizedBox(height: 22),
+      HbButton.primary(
+        busy ? busyLabel : action,
+        onPressed: busy ? null : () => _submit(login),
+      ),
+      if (login.awaitingCode)
+        TextButton(
+          onPressed: busy ? null : _controller.changeNumber,
+          child: const Text('Change number or send a new code'),
+        ),
+      TextButton(
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const ForgotScreen())),
+        child: const Text('Forgot PIN or password?'),
+      ),
+    ];
+  }
+
+  Widget _layout(LoginState login) => Scaffold(
     body: SafeArea(
       child: Column(
         children: [
@@ -108,37 +217,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         height: 1.5,
                       ),
                     ),
-                    const SizedBox(height: 22),
-                    HbTextField(
-                      label: 'CHW ID or phone number',
-                      hint: 'Enter your ID or phone',
-                      icon: Icons.badge_outlined,
-                      controller: _id,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: _required,
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final (m, label) in const [
+                          (LoginMethod.pin, 'PIN'),
+                          (LoginMethod.smsCode, 'SMS code'),
+                          (LoginMethod.email, 'Email'),
+                        ])
+                          ChoiceChipPill(
+                            label: label,
+                            selected: login.method == m,
+                            onTap: () => _choose(m),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    HbTextField(
-                      label: 'Password',
-                      hint: 'Enter your password',
-                      icon: Icons.lock_outline,
-                      controller: _secret,
-                      obscure: true,
-                      validator: _required,
-                    ),
-                    if (error != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        error,
-                        style: HbText.bodySmall.copyWith(color: HbColors.red),
-                      ),
-                    ],
-                    const SizedBox(height: 22),
-                    HbButton.primary(
-                      busy ? 'Logging in...' : 'Log in',
-                      onPressed: busy ? null : _submit,
-                    ),
-                    const SizedBox(height: 120),
+                    const SizedBox(height: 18),
+                    ..._fields(login),
+                    const SizedBox(height: 60),
                     HbCard(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,

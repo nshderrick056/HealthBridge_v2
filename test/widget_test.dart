@@ -19,7 +19,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _session = Session(
   accessToken: 'a',
-  refreshToken: 'r',
   userId: 'u1',
   fullName: 'Claudine Mukamana',
 );
@@ -135,7 +134,8 @@ void main() {
     await tester.pumpWidget(_app(db, const LoginScreen()));
 
     expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.text('CHW ID or phone number'), findsOneWidget);
+    expect(find.text('Phone number'), findsOneWidget);
+    expect(find.text('PIN'), findsWidgets);
     await tester.tap(find.text('Log in'));
     await tester.pump();
     expect(find.text('Required'), findsNWidgets(2));
