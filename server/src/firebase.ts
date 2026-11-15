@@ -20,10 +20,14 @@ export function createFirebase(name = '[DEFAULT]'): Fb {
         projectId: env.FIREBASE_PROJECT_ID,
         // The emulator accepts unsigned custom tokens; naming an account skips the cloud metadata lookup.
         ...(emulated && { serviceAccountId: `emulator@${env.FIREBASE_PROJECT_ID}.iam.gserviceaccount.com` }),
+        // The key itself (not application-default credentials), so custom tokens for PIN sign-in are
+        // signed locally instead of through the IAM signBlob API, which a new project has switched off.
         ...(!emulated && {
           credential: env.FIREBASE_SERVICE_ACCOUNT
             ? cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT))
-            : applicationDefault(),
+            : process.env.GOOGLE_APPLICATION_CREDENTIALS
+              ? cert(process.env.GOOGLE_APPLICATION_CREDENTIALS)
+              : applicationDefault(),
         }),
       },
       name,
