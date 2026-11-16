@@ -35,7 +35,7 @@ describe('LoginForm', () => {
   it.each([
     ['invalid_credentials', 401, 'Wrong email or password.'],
     ['too_many_attempts', 429, 'Too many attempts'],
-    ['not_supervisor', 403, 'cannot use the supervisor dashboard'],
+    ['not_supervisor', 403, 'cannot use the dashboard'],
   ])('explains %s', async (error, status, message) => {
     mockFetch(() => json({ error }, status));
     render(<LoginForm />);

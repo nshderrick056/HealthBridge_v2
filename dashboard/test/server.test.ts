@@ -97,7 +97,7 @@ describe('login and logout', () => {
     const res = await login(request('/api/auth/login', { method: 'POST', body: credentials }));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ name: 'Demo Supervisor' });
+    expect(await res.json()).toEqual({ name: 'Demo Supervisor', role: 'supervisor' });
     expect(fetch.mock.calls[0][0]).toContain('identitytoolkit.googleapis.com');
     expect(res.cookies.get('hb_access')).toMatchObject({ value: fakeIdToken('supervisor'), httpOnly: true, sameSite: 'lax' });
     expect(res.cookies.get('hb_refresh')).toMatchObject({ value: 'R1', httpOnly: true });

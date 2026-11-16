@@ -15,14 +15,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'api_unreachable' }, { status: 502 });
   }
   if (!signIn.ok) return NextResponse.json({ error: signIn.error }, { status: signIn.status });
-  // CHWs and admins use the mobile app; only supervisors get a dashboard session.
-  if (signIn.role !== 'supervisor') {
+  // CHWs use the mobile app; supervisors and admins get a dashboard session.
+  const role = signIn.role;
+  if (role !== 'supervisor' && role !== 'admin') {
     return NextResponse.json({ error: 'not_supervisor' }, { status: 403 });
   }
   // Still the temporary password from the admin's SMS: it is replaced in the app first.
   if (signIn.mustChange) return NextResponse.json({ error: 'must_change' }, { status: 403 });
 
-  const out = NextResponse.json({ name: signIn.name });
-  setSession(out, { accessToken: signIn.idToken, refreshToken: signIn.refreshToken, name: signIn.name });
+  const out = NextResponse.json({ name: signIn.name, role });
+  setSession(out, { accessToken: signIn.idToken, refreshToken: signIn.refreshToken, name: signIn.name, role });
   return out;
 }

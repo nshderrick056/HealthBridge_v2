@@ -1,19 +1,28 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { AlertIcon, UserIcon } from './icons';
+import { AlertIcon, HospitalIcon, KeyIcon, UserIcon, UserPlusIcon } from './icons';
 
-const LINKS = [
-  { href: '/alerts', label: 'Urgent alerts', short: 'Alerts', Icon: AlertIcon },
-  { href: '/chws', label: 'Community health workers', short: 'CHWs', Icon: UserIcon },
-];
+export type Section = 'supervisor' | 'admin';
+
+const LINKS = {
+  supervisor: [
+    { href: '/alerts', label: 'Urgent alerts', short: 'Alerts', Icon: AlertIcon },
+    { href: '/chws', label: 'Community health workers', short: 'CHWs', Icon: UserIcon },
+  ],
+  admin: [
+    { href: '/admin/resets', label: 'Reset requests', short: 'Resets', Icon: KeyIcon },
+    { href: '/admin/accounts', label: 'Add an account', short: 'Accounts', Icon: UserPlusIcon },
+    { href: '/admin/centres', label: 'Health centres', short: 'Centres', Icon: HospitalIcon },
+  ],
+};
 
 /** The dark sidebar's links; the current one is a lime pill. Horizontal in the phone top bar. */
-export function NavLinks({ vertical = false }: { vertical?: boolean }) {
+export function NavLinks({ section = 'supervisor', vertical = false }: { section?: Section; vertical?: boolean }) {
   const path = usePathname();
   return (
     <nav aria-label="Main" className={vertical ? 'flex flex-col gap-1' : 'flex gap-1 overflow-x-auto'}>
-      {LINKS.map(({ href, label, short, Icon }) => {
+      {LINKS[section].map(({ href, label, short, Icon }) => {
         const active = path === href || path.startsWith(`${href}/`);
         return (
           <Link

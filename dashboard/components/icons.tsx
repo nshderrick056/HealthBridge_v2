@@ -49,6 +49,26 @@ export const WifiIcon = ({ className = 'size-3.5' }) => (
   </svg>
 );
 
+export const KeyIcon = ({ className = 'size-4' }) => (
+  <svg {...props} className={className}>
+    <circle cx="7.5" cy="15.5" r="5.5" />
+    <path d="m21 2-9.6 9.6M15.5 7.5l2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
+  </svg>
+);
+
+export const UserPlusIcon = ({ className = 'size-4' }) => (
+  <svg {...props} className={className}>
+    <circle cx="9" cy="8" r="4" />
+    <path d="M2 21a7 7 0 0 1 14 0M19 8v6M22 11h-6" />
+  </svg>
+);
+
+export const HospitalIcon = ({ className = 'size-4' }) => (
+  <svg {...props} className={className}>
+    <path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M12 7v6M9 10h6M10 21v-4h4v4" />
+  </svg>
+);
+
 export const ChevronIcon = ({ className = 'size-3.5' }) => (
   <svg {...props} className={className}>
     <path d="m9 6 6 6-6 6" />

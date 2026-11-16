@@ -5,6 +5,9 @@ import type { NextResponse } from 'next/server';
 export const ACCESS_COOKIE = 'hb_access';
 export const REFRESH_COOKIE = 'hb_refresh';
 export const NAME_COOKIE = 'hb_name';
+/** 'supervisor' or 'admin'. Only picks which pages to show; the API checks the role on every call. */
+export const ROLE_COOKIE = 'hb_role';
+export type DashboardRole = 'supervisor' | 'admin';
 
 export function apiUrl() {
   const url = process.env.API_URL;
@@ -23,15 +26,24 @@ const base = {
 const ACCESS_MAX_AGE = 55 * 60;
 const REFRESH_MAX_AGE = 30 * 24 * 3600;
 
-export function setSession(res: NextResponse, s: { accessToken: string; refreshToken?: string; name?: string }) {
+export function setSession(
+  res: NextResponse,
+  s: { accessToken: string; refreshToken?: string; name?: string; role?: DashboardRole },
+) {
   res.cookies.set(ACCESS_COOKIE, s.accessToken, { ...base, maxAge: ACCESS_MAX_AGE });
   if (s.refreshToken) res.cookies.set(REFRESH_COOKIE, s.refreshToken, { ...base, maxAge: REFRESH_MAX_AGE });
   if (s.name) res.cookies.set(NAME_COOKIE, s.name, { ...base, maxAge: REFRESH_MAX_AGE });
+  if (s.role) res.cookies.set(ROLE_COOKIE, s.role, { ...base, maxAge: REFRESH_MAX_AGE });
 }
 
 export function clearSession(res: NextResponse) {
-  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, NAME_COOKIE]) res.cookies.set(name, '', { ...base, maxAge: 0 });
+  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, NAME_COOKIE, ROLE_COOKIE]) {
+    res.cookies.set(name, '', { ...base, maxAge: 0 });
+  }
 }
+
+/** Where a role starts. A session from before the role cookie existed is a supervisor's. */
+export const homeOf = (role: string | undefined) => (role === 'admin' ? '/admin/resets' : '/alerts');
 
 // Sign-in is Firebase Auth (project healthbridge-rwanda). Its web API key is public (it is in the
 // Android app too); it identifies the project, it does not grant access.
