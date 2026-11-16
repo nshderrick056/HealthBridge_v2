@@ -18,12 +18,19 @@ import { usePolling } from './usePolling';
 
 type Action = Exclude<AlertStatus, 'new'>;
 
-const ACTIONS: { status: Action; label: string; primary: boolean }[] = [
-  { status: 'reviewed', label: 'Mark as reviewed', primary: true },
-  { status: 'escalated', label: 'Escalate case', primary: false },
-  { status: 'follow_up', label: 'Request follow-up', primary: false },
-  { status: 'resolved', label: 'Mark resolved', primary: true },
+// Dark pills for the usual next steps, red only for escalating, white for the rest.
+const ACTIONS: { status: Action; label: string; tone: 'dark' | 'red' | 'light' }[] = [
+  { status: 'reviewed', label: 'Mark as reviewed', tone: 'dark' },
+  { status: 'escalated', label: 'Escalate case', tone: 'red' },
+  { status: 'follow_up', label: 'Request follow-up', tone: 'light' },
+  { status: 'resolved', label: 'Mark resolved', tone: 'dark' },
 ];
+
+const BUTTON = {
+  dark: 'bg-ink text-white enabled:hover:bg-brand-deep',
+  red: 'bg-red text-white enabled:hover:opacity-90',
+  light: 'border-[1.5px] border-edge bg-white text-ink enabled:hover:bg-canvas',
+};
 
 const ERRORS: Record<string, string> = {
   status_changed: 'Someone else changed this case just now. The latest status is shown; check it and try again.',
@@ -44,8 +51,8 @@ export function CaseDetail({ id }: { id: string }) {
 
   if (!c) {
     return error === 'not_found' ? (
-      <p className="rounded-2xl border border-line bg-white p-8 text-center text-muted">
-        This case does not exist or belongs to another health centre. <Link href="/alerts" className="font-semibold text-teal">Back to alerts</Link>
+      <p className="rounded-3xl bg-white p-8 text-center text-muted shadow-card">
+        This case does not exist or belongs to another health centre. <Link href="/alerts" className="font-semibold text-brand underline underline-offset-4">Back to alerts</Link>
       </p>
     ) : (
       <p className="text-muted" role={error ? 'alert' : undefined}>
@@ -77,48 +84,61 @@ export function CaseDetail({ id }: { id: string }) {
 
   const answers = describeAnswers(c.visit.answers);
   const village = c.patient.village;
+  const open = c.status === 'new' || c.status === 'escalated';
 
   return (
-    <div className="space-y-4">
-      <Link href="/alerts" className="text-sm font-semibold text-teal">
-        ← All alerts
+    <div className="space-y-5">
+      <Link
+        href="/alerts"
+        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-4 text-[15px] font-medium shadow-card hover:bg-teal-tint"
+      >
+        <span aria-hidden>←</span> All alerts
       </Link>
-      <h1 className="text-2xl font-bold sm:text-3xl">Urgent case detail</h1>
+      <h1 className="sr-only">Urgent case detail</h1>
 
-      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-        <div className="space-y-4">
-          <Card className={c.status === 'new' ? 'border-red' : ''}>
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-semibold">Urgent case · {c.patient.shortId}</p>
-              <StatusPill status={c.status} />
-            </div>
-            <p className="mt-2 text-2xl font-bold">{c.patient.name ?? 'Name not received yet'}</p>
-            <div className="mt-1 flex flex-wrap justify-between gap-x-4 text-sm">
-              <span className="text-muted">
-                {[c.patient.sex === 'F' ? 'Female' : c.patient.sex === 'M' ? 'Male' : null, c.patient.ageEstimate != null ? `${c.patient.ageEstimate} years` : null]
-                  .filter(Boolean)
-                  .join(' · ') || 'Case type'}
-              </span>
-              <span className="font-semibold text-red">{VISIT_TYPE_LABEL[c.visit.type]} warning signs</span>
-            </div>
-          </Card>
+      <section
+        className={`rounded-3xl p-6 text-white sm:p-8 ${open ? 'bg-red' : 'bg-gradient-to-br from-brand to-brand-light'}`}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className={`text-[15px] font-semibold ${open ? 'text-on-red' : 'text-on-brand'}`}>
+            Urgent case · {c.patient.shortId}
+          </p>
+          <span className="rounded-full bg-white">
+            <StatusPill status={c.status} />
+          </span>
+        </div>
+        <p className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{c.patient.name ?? 'Name not received yet'}</p>
+        <p className={`mt-2 text-[15px] ${open ? 'text-on-red' : 'text-on-brand'}`}>
+          {[
+            c.patient.sex === 'F' ? 'Female' : c.patient.sex === 'M' ? 'Male' : null,
+            c.patient.ageEstimate != null ? `${c.patient.ageEstimate} years` : null,
+            village || null,
+            `${VISIT_TYPE_LABEL[c.visit.type]} warning signs`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-[3fr_2fr]">
+        <div className="space-y-5">
 
           {c.visit.isPartial && (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-amber-tint p-4 text-sm text-warning">
+            <div className="flex flex-wrap items-center gap-3 rounded-3xl bg-amber-tint p-5 text-[15px] text-warning">
               <PendingTag />
               Only the SMS alert has arrived. The full record appears here when the CHW&apos;s phone syncs.
             </div>
           )}
 
-          <section className="rounded-2xl border border-line bg-red-tint p-4 sm:p-5" aria-labelledby="signs">
-            <h2 id="signs" className="font-semibold">
+          <section className="rounded-3xl bg-white p-5 shadow-card sm:p-6" aria-labelledby="signs">
+            <h2 id="signs" className="text-xl font-semibold tracking-tight">
               Key warning indicators
             </h2>
             {c.dangerSigns.length ? (
-              <ul className="mt-2 space-y-1.5">
+              <ul className="mt-3 space-y-2.5">
                 {c.dangerSigns.map((s) => (
-                  <li key={s.code} className="flex items-center gap-2 text-sm">
-                    <span aria-hidden className="size-1.5 rounded-full bg-red" />
+                  <li key={s.code} className="flex items-center gap-3 text-[17px] font-medium">
+                    <span aria-hidden className="size-2.5 rounded-full bg-red" />
                     {s.label}
                   </li>
                 ))}
@@ -145,7 +165,7 @@ export function CaseDetail({ id }: { id: string }) {
             <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-divider pt-4 text-sm sm:grid-cols-3">
               <Fact label="CHW">
                 {c.chw.name}
-                <a href={`tel:${c.chw.phone}`} className="block font-normal text-teal">
+                <a href={`tel:${c.chw.phone}`} className="block font-normal text-brand underline underline-offset-4">
                   {c.chw.phone}
                 </a>
               </Fact>
@@ -173,15 +193,15 @@ export function CaseDetail({ id }: { id: string }) {
 
         <div className="space-y-4">
           <Card>
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Case status</h2>
-              <span className="text-sm font-semibold text-red">{STATUS_LABEL[c.status]}</span>
-            </div>
-            <ol className="mt-3 grid grid-cols-5 text-center text-xs text-muted">
+            <h2 className="text-xl font-semibold tracking-tight">Case status</h2>
+            <ol className="mt-3 flex flex-wrap gap-2">
               {STATUS_ORDER.map((s) => (
-                <li key={s} aria-current={s === c.status ? 'step' : undefined} className="flex flex-col items-center gap-1">
-                  <span className={`size-2.5 rounded-full ${s === c.status ? 'bg-red' : 'bg-line'}`} />
-                  <span className={s === c.status ? 'font-semibold text-red' : ''}>{STATUS_LABEL[s]}</span>
+                <li key={s} aria-current={s === c.status ? 'step' : undefined}>
+                  {s === c.status ? (
+                    <StatusPill status={s} />
+                  ) : (
+                    <span className="inline-flex rounded-full bg-canvas px-3 py-1 text-sm text-muted">{STATUS_LABEL[s]}</span>
+                  )}
                 </li>
               ))}
             </ol>
@@ -200,28 +220,24 @@ export function CaseDetail({ id }: { id: string }) {
                     onChange={(e) => setNote(e.target.value)}
                     maxLength={400}
                     rows={2}
-                    className="mt-1 block w-full rounded-xl border border-line bg-white px-3 py-2 focus:border-teal focus:outline-none"
+                    className="mt-2 block w-full rounded-2xl border-[1.5px] border-edge bg-white px-4 py-3 focus:border-brand focus:outline-none"
                   />
                 </label>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  {ACTIONS.map(({ status, label, primary }) => (
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  {ACTIONS.map(({ status, label, tone }) => (
                     <button
                       key={status}
                       type="button"
                       disabled={busy || !c.next.includes(status)}
                       onClick={() => (status === 'follow_up' || status === 'resolved' ? setConfirming(status) : act(status))}
-                      className={`rounded-2xl border px-3 py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                        primary
-                          ? 'border-teal bg-teal text-white enabled:hover:bg-teal-dark'
-                          : 'border-line bg-white text-teal enabled:hover:border-teal'
-                      }`}
+                      className={`min-h-12 rounded-full px-4 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${BUTTON[tone]}`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
                 {confirming && (
-                  <div className="mt-3 space-y-3 rounded-xl bg-neutral-tint p-3 text-sm">
+                  <div className="mt-4 space-y-3 rounded-2xl bg-canvas p-4 text-[15px]">
                     {confirming === 'follow_up' ? (
                       <label className="block">
                         <span className="text-muted">Follow up by</span>
@@ -230,22 +246,26 @@ export function CaseDetail({ id }: { id: string }) {
                           min={today()}
                           value={followUpBy}
                           onChange={(e) => setFollowUpBy(e.target.value)}
-                          className="mt-1 block rounded-xl border border-line bg-white px-3 py-2"
+                          className="mt-2 block min-h-11 rounded-2xl border-[1.5px] border-edge bg-white px-4"
                         />
                       </label>
                     ) : (
                       <p>Close this case? A resolved case cannot be reopened.</p>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => act(confirming)}
-                        className="rounded-xl bg-teal px-4 py-2 font-semibold text-white disabled:opacity-40"
+                        className="min-h-11 rounded-full bg-ink px-5 font-semibold text-white disabled:opacity-40"
                       >
                         {confirming === 'follow_up' ? 'Send follow-up request' : 'Resolve case'}
                       </button>
-                      <button type="button" onClick={() => setConfirming(null)} className="rounded-xl px-4 py-2 font-semibold text-teal">
+                      <button
+                        type="button"
+                        onClick={() => setConfirming(null)}
+                        className="min-h-11 rounded-full px-4 font-semibold text-ink underline underline-offset-4"
+                      >
                         Cancel
                       </button>
                     </div>
@@ -291,7 +311,7 @@ export function CaseDetail({ id }: { id: string }) {
 }
 
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-line bg-white p-4 sm:p-5 ${className}`}>{children}</section>;
+  return <section className={`rounded-3xl bg-white p-5 shadow-card sm:p-6 ${className}`}>{children}</section>;
 }
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {

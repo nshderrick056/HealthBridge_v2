@@ -42,10 +42,10 @@ export function LoginForm() {
   }
 
   const field =
-    'mt-1 block w-full rounded-xl border border-line bg-white px-3 py-2.5 text-base focus:border-teal focus:outline-none';
+    'mt-2 block w-full rounded-2xl border-[1.5px] border-edge bg-white px-4 py-3.5 text-base focus:border-brand focus:outline-none';
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <label className="block text-sm font-semibold">
+    <form onSubmit={submit} className="space-y-5">
+      <label className="block text-[15px] font-medium">
         Email
         <input
           type="email"
@@ -56,7 +56,7 @@ export function LoginForm() {
           className={field}
         />
       </label>
-      <label className="block text-sm font-semibold">
+      <label className="block text-[15px] font-medium">
         Password
         <input
           type="password"
@@ -68,14 +68,14 @@ export function LoginForm() {
         />
       </label>
       {error && (
-        <p role="alert" className="rounded-xl bg-red-tint px-3 py-2 text-sm text-red">
+        <p role="alert" className="rounded-2xl bg-red-tint px-4 py-3 text-[15px] text-red">
           {error}
         </p>
       )}
       <button
         type="submit"
         disabled={busy}
-        className="w-full rounded-2xl bg-teal py-3 font-semibold text-white hover:bg-teal-dark disabled:opacity-50"
+        className="min-h-14 w-full rounded-full bg-ink font-semibold text-white hover:bg-brand-deep disabled:opacity-50"
       >
         {busy ? 'Signing in…' : 'Sign in'}
       </button>
