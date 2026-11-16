@@ -153,6 +153,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'Seen at the clinic');
     await tester.ensureVisible(find.text('Resolve'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Resolve'));
     await tester.pump();
     expect(repo.moves.single, (

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Floating dark pill: Home, Patients, Record (lime, in the middle), Alerts, Profile.
+/// The CHW tabs: Home, Patients, Record (lime, in the middle), Alerts, Profile.
 /// [current] is null on screens that sit under no tab (the record flow).
 class HbBottomNav extends StatelessWidget {
   const HbBottomNav({super.key, required this.current, required this.onTap});
@@ -17,6 +17,26 @@ class HbBottomNav extends StatelessWidget {
     (Icons.warning_amber_rounded, 'Alerts'),
     (Icons.person_outline, 'Profile'),
   ];
+
+  @override
+  Widget build(BuildContext context) =>
+      HbPillNav(items: _items, current: current, onTap: onTap, raised: 2);
+}
+
+/// Floating dark pill of tabs. The current tab is lime; [raised] (if any) is a lime button.
+class HbPillNav extends StatelessWidget {
+  const HbPillNav({
+    super.key,
+    required this.items,
+    required this.current,
+    required this.onTap,
+    this.raised,
+  });
+
+  final List<(IconData, String)> items;
+  final int? current;
+  final ValueChanged<int> onTap;
+  final int? raised;
 
   static const _inactive = Color(0xFF9AA5A1);
 
@@ -35,7 +55,7 @@ class HbBottomNav extends StatelessWidget {
         ),
         child: Row(
           children: [
-            for (var i = 0; i < _items.length; i++)
+            for (var i = 0; i < items.length; i++)
               Expanded(
                 child: Semantics(
                   selected: current == i,
@@ -43,7 +63,7 @@ class HbBottomNav extends StatelessWidget {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(28),
                     onTap: () => onTap(i),
-                    child: i == 2 ? _record(_items[i]) : _item(i, _items[i]),
+                    child: i == raised ? _raised(items[i]) : _item(i, items[i]),
                   ),
                 ),
               ),
@@ -55,11 +75,10 @@ class HbBottomNav extends StatelessWidget {
 
   Widget _item(int i, (IconData, String) item) {
     final on = current == i;
-    final color = on ? HbColors.lime : _inactive;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(item.$1, size: 22, color: color),
+        Icon(item.$1, size: 22, color: on ? HbColors.lime : _inactive),
         const SizedBox(height: 3),
         Text(
           item.$2,
@@ -74,7 +93,7 @@ class HbBottomNav extends StatelessWidget {
     );
   }
 
-  Widget _record((IconData, String) item) => Column(
+  Widget _raised((IconData, String) item) => Column(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
       Container(

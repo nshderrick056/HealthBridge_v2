@@ -3,13 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../data/providers.dart';
 import '../../domain/entities/supervision.dart';
 import '../patients/patients_screen.dart';
 import '../view_models.dart';
 import 'case_screen.dart';
 import 'supervisor_controllers.dart';
 
-/// The supervisor's urgent-alert inbox for their health centre (Figma supervisor frame 1).
+/// The supervisor's urgent-alert inbox for their health centre (Figma v3 "Supervisor alerts").
 class InboxScreen extends ConsumerWidget {
   const InboxScreen({super.key});
 
@@ -26,8 +27,11 @@ class InboxScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(inboxFilterProvider);
     final alerts = ref.watch(inboxProvider);
+    final session = ref.watch(sessionProvider);
     return PageBody(
       children: [
+        if (session != null)
+          ProfileHeader(name: session.fullName, role: 'Supervisor'),
         const PageHeader(
           title: 'Urgent alerts',
           subtitle: 'Your health centre, updated every 10 seconds',
@@ -47,14 +51,39 @@ class InboxScreen extends ConsumerWidget {
         ...alerts.when(
           data: (list) => list.isEmpty
               ? [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: Text('No alerts here.', style: HbText.bodySmall),
+                  HbCard(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('No alerts here', style: HbText.headingMedium),
+                        const SizedBox(height: 6),
+                        Text(
+                          'A new alert shows here as soon as a CHW sends one, '
+                          'by internet or by SMS.',
+                          style: HbText.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
                 ]
-              : [for (final a in list) AlertCard(alert: a)],
+              : [
+                  HbCard(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      children: [
+                        for (final (i, a) in list.indexed) ...[
+                          if (i > 0)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 18),
+                              child: HbDivider(),
+                            ),
+                          AlertCard(alert: a),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
           loading: () => [
             const Padding(
               padding: EdgeInsets.all(24),
@@ -64,7 +93,7 @@ class InboxScreen extends ConsumerWidget {
           error: (_, _) => [
             Text(
               'Could not load alerts. Check your connection.',
-              style: HbText.bodySmall.copyWith(color: HbColors.red),
+              style: HbText.bodyMedium.copyWith(color: HbColors.red),
             ),
           ],
         ),
@@ -73,7 +102,7 @@ class InboxScreen extends ConsumerWidget {
   }
 }
 
-/// One case in the inbox.
+/// One case in the inbox: an avatar coloured by status, who and what, and the status in words.
 class AlertCard extends StatelessWidget {
   const AlertCard({super.key, required this.alert});
 
@@ -82,82 +111,89 @@ class AlertCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = alert;
+    final name = a.patientName ?? 'Patient ${a.patientShortId ?? ''}';
     final when = a.createdAt == null
         ? ''
         : '${relativeDay(a.createdAt!)} ${clock(a.createdAt!)}';
-    return HbCard(
+    final (_, color) = StatusTag.colours(a.status);
+    return InkWell(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => CaseScreen(alertId: a.id)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  a.patientName ?? 'Patient ${a.patientShortId ?? ''}',
-                  style: HbText.headingSmall,
-                  overflow: TextOverflow.ellipsis,
-                ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            HbAvatar(
+              name,
+              kind: switch (a.status) {
+                AlertStatus.newCase ||
+                AlertStatus.escalated => AvatarKind.urgent,
+                AlertStatus.followUp => AvatarKind.due,
+                _ => AvatarKind.plain,
+              },
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: HbText.headingSmall),
+                  Text(
+                    [
+                      if (a.chwName != null) 'CHW ${a.chwName}',
+                      if (a.village != null && a.village!.isNotEmpty)
+                        a.village!,
+                      when,
+                    ].join(' · '),
+                    style: HbText.bodySmall,
+                  ),
+                  if (a.dangerSigns.isNotEmpty)
+                    Text(
+                      a.dangerSigns.join(', '),
+                      style: HbText.bodySmall.copyWith(color: HbColors.red),
+                    ),
+                  if (a.channel == 'sms' || a.isPartial)
+                    Text(
+                      a.isPartial
+                          ? 'By SMS · full record not received yet'
+                          : 'Arrived by SMS',
+                      style: HbText.bodySmall.copyWith(color: HbColors.warning),
+                    ),
+                ],
               ),
-              const SizedBox(width: 8),
-              StatusTag(a.status),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            [
-              if (a.chwName != null) 'CHW ${a.chwName}',
-              if (a.village != null && a.village!.isNotEmpty) a.village!,
-              when,
-            ].join(' · '),
-            style: HbText.bodySmall,
-          ),
-          if (a.dangerSigns.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            ),
+            const SizedBox(width: 8),
             Text(
-              a.dangerSigns.join(', '),
-              style: HbText.bodySmall.copyWith(color: HbColors.red),
+              a.status.label,
+              style: HbText.labelMedium.copyWith(color: color),
             ),
           ],
-          if (a.channel == 'sms' || a.isPartial) ...[
-            const SizedBox(height: 6),
-            Text(
-              a.isPartial
-                  ? 'By SMS · full record not received yet'
-                  : 'Arrived by SMS',
-              style: HbText.caption.copyWith(color: HbColors.warning),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
 }
 
-/// A case's status as a small coloured label.
+/// A case's status as a tinted pill.
 class StatusTag extends StatelessWidget {
   const StatusTag(this.status, {super.key});
 
   final AlertStatus status;
 
+  /// (background, text) for a status: red while it needs action, amber for follow-up.
+  static (Color, Color) colours(AlertStatus status) => switch (status) {
+    AlertStatus.newCase => (HbColors.redTint, HbColors.red),
+    AlertStatus.escalated => (HbColors.redTint, HbColors.red),
+    AlertStatus.followUp => (HbColors.amberTint, HbColors.warning),
+    AlertStatus.reviewed => (HbColors.tealTint, HbColors.brand),
+    AlertStatus.resolved => (HbColors.greenTint, HbColors.brand),
+  };
+
   @override
   Widget build(BuildContext context) {
-    final (fg, bg) = switch (status) {
-      AlertStatus.newCase => (HbColors.red, HbColors.redTint),
-      AlertStatus.escalated => (HbColors.red, HbColors.redTint),
-      AlertStatus.followUp => (HbColors.warning, HbColors.amberTint),
-      AlertStatus.reviewed => (HbColors.teal, HbColors.tealTint),
-      AlertStatus.resolved => (HbColors.green, HbColors.greenTint),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(status.label, style: HbText.labelSmall.copyWith(color: fg)),
-    );
+    final (bg, fg) = colours(status);
+    return HbPill(status.label, background: bg, foreground: fg);
   }
 }

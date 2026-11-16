@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/app_theme.dart';
+import '../../core/widgets/bottom_nav.dart';
 import '../admin/admin_screens.dart';
 import '../profile/profile_screen.dart';
 import '../supervisor/chws_screen.dart';
@@ -20,17 +20,17 @@ final _supervisorTab = NotifierProvider<_TabController, int>(
 );
 final _adminTab = NotifierProvider<_TabController, int>(_TabController.new);
 
-/// A shell with its own bottom tabs, in the app's colours.
+/// A shell with its own tabs in the floating dark pill.
 class _RoleShell extends ConsumerWidget {
   const _RoleShell({
     required this.tab,
     required this.pages,
-    required this.destinations,
+    required this.items,
   });
 
   final NotifierProvider<_TabController, int> tab;
   final List<Widget> pages;
-  final List<NavigationDestination> destinations;
+  final List<(IconData, String)> items;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -40,12 +40,10 @@ class _RoleShell extends ConsumerWidget {
         bottom: false,
         child: IndexedStack(index: index, children: pages),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        backgroundColor: HbColors.white,
-        indicatorColor: HbColors.tealTint,
-        onDestinationSelected: ref.read(tab.notifier).go,
-        destinations: destinations,
+      bottomNavigationBar: HbPillNav(
+        items: items,
+        current: index,
+        onTap: ref.read(tab.notifier).go,
       ),
     );
   }
@@ -59,10 +57,10 @@ class SupervisorShell extends StatelessWidget {
   Widget build(BuildContext context) => _RoleShell(
     tab: _supervisorTab,
     pages: const [InboxScreen(), ChwsScreen(), ProfileScreen()],
-    destinations: const [
-      NavigationDestination(icon: Icon(Icons.error_outline), label: 'Alerts'),
-      NavigationDestination(icon: Icon(Icons.groups_outlined), label: 'CHWs'),
-      NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
+    items: const [
+      (Icons.warning_amber_rounded, 'Alerts'),
+      (Icons.groups_outlined, 'CHWs'),
+      (Icons.person_outline, 'Profile'),
     ],
   );
 }
@@ -80,17 +78,11 @@ class AdminShell extends StatelessWidget {
       CentresScreen(),
       ProfileScreen(),
     ],
-    destinations: const [
-      NavigationDestination(icon: Icon(Icons.lock_reset), label: 'Resets'),
-      NavigationDestination(
-        icon: Icon(Icons.person_add_alt_outlined),
-        label: 'New account',
-      ),
-      NavigationDestination(
-        icon: Icon(Icons.local_hospital_outlined),
-        label: 'Centres',
-      ),
-      NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
+    items: const [
+      (Icons.lock_reset, 'Resets'),
+      (Icons.person_add_alt_outlined, 'New account'),
+      (Icons.local_hospital_outlined, 'Centres'),
+      (Icons.person_outline, 'Profile'),
     ],
   );
 }

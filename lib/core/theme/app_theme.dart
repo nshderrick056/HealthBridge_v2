@@ -143,6 +143,13 @@ ThemeData buildTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: HbColors.canvas,
     dividerColor: HbColors.line,
+    appBarTheme: AppBarTheme(
+      backgroundColor: HbColors.canvas,
+      foregroundColor: HbColors.ink,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      titleTextStyle: HbText.headingMedium,
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: HbColors.white,

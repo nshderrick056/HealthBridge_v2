@@ -31,41 +31,75 @@ class ChwsScreen extends ConsumerWidget {
             error: (_, _) => [
               Text(
                 'Could not load the CHWs. Check your connection.',
-                style: HbText.bodySmall.copyWith(color: HbColors.red),
+                style: HbText.bodyMedium.copyWith(color: HbColors.red),
               ),
             ],
             data: (list) => [
               if (list.isEmpty)
-                Text('No CHWs at this centre yet.', style: HbText.bodySmall),
-              for (final c in list)
                 HbCard(
+                  padding: const EdgeInsets.all(22),
+                  child: Text(
+                    'No CHWs at this centre yet.',
+                    style: HbText.bodyMedium.copyWith(color: HbColors.muted),
+                  ),
+                )
+              else
+                HbCard(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(c.name, style: HbText.headingSmall),
-                      const SizedBox(height: 4),
-                      Text(
-                        [
-                          if (c.chwRole != null) c.chwRole!.toUpperCase(),
-                          if (c.village != null) c.village!,
-                          if (c.phone != null) c.phone!,
-                        ].join(' · '),
-                        style: HbText.bodySmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        c.lastSyncAt == null
-                            ? 'Has not synced yet'
-                            : 'Last sync ${relativeDay(c.lastSyncAt!)} ${clock(c.lastSyncAt!)}',
-                        style: HbText.bodySmall,
-                      ),
-                      if (c.pendingCount > 0)
-                        Text(
-                          '${c.pendingCount} SMS case${c.pendingCount == 1 ? '' : 's'} waiting for the full record',
-                          style: HbText.bodySmall.copyWith(
-                            color: HbColors.warning,
+                      for (final (i, c) in list.indexed) ...[
+                        if (i > 0)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 18),
+                            child: HbDivider(),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              HbAvatar(
+                                c.name,
+                                kind: c.pendingCount > 0
+                                    ? AvatarKind.due
+                                    : AvatarKind.plain,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(c.name, style: HbText.headingSmall),
+                                    Text(
+                                      [
+                                        if (c.chwRole != null)
+                                          c.chwRole!.toUpperCase(),
+                                        if (c.village != null) c.village!,
+                                        if (c.phone != null) c.phone!,
+                                      ].join(' · '),
+                                      style: HbText.bodySmall,
+                                    ),
+                                    Text(
+                                      c.lastSyncAt == null
+                                          ? 'Has not synced yet'
+                                          : 'Last sync ${relativeDay(c.lastSyncAt!)} ${clock(c.lastSyncAt!)}',
+                                      style: HbText.bodySmall,
+                                    ),
+                                    if (c.pendingCount > 0)
+                                      Text(
+                                        '${c.pendingCount} SMS case${c.pendingCount == 1 ? '' : 's'} waiting for the full record',
+                                        style: HbText.bodySmall.copyWith(
+                                          color: HbColors.warning,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),

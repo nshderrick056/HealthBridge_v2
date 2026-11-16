@@ -82,6 +82,8 @@ class ResetRequestsScreen extends ConsumerWidget {
                 HbCard(
                   child: Row(
                     children: [
+                      HbAvatar(r.name ?? '?'),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,7 +92,6 @@ class ResetRequestsScreen extends ConsumerWidget {
                               r.name ?? 'Unknown',
                               style: HbText.headingSmall,
                             ),
-                            const SizedBox(height: 4),
                             Text(
                               [
                                 r.role?.toUpperCase() ?? '',
@@ -103,11 +104,15 @@ class ResetRequestsScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
                       FilledButton(
                         onPressed: () => _approve(context, ref, r),
                         style: FilledButton.styleFrom(
-                          backgroundColor: HbColors.teal,
+                          backgroundColor: HbColors.ink,
+                          foregroundColor: Colors.white,
                           minimumSize: const Size(48, 48),
+                          shape: const StadiumBorder(),
+                          textStyle: HbText.labelMedium,
                         ),
                         child: const Text('Approve'),
                       ),
@@ -445,11 +450,42 @@ class _CentresScreenState extends ConsumerState<CentresScreen> {
             data: (list) => [
               if (list.isEmpty)
                 Text('No health centres yet.', style: HbText.bodySmall),
-              for (final c in list)
-                HbCard(child: Text(c.name, style: HbText.headingSmall)),
+              if (list.isNotEmpty)
+                HbCard(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    children: [
+                      for (final (i, c) in list.indexed) ...[
+                        if (i > 0)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 18),
+                            child: HbDivider(),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.local_hospital_outlined,
+                                color: HbColors.brand,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(c.name, style: HbText.headingSmall),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
             ],
           ),
-          Text('New health centre', style: HbText.headingSmall),
+          const SectionHeading('New health centre'),
           HbTextField(
             label: 'Name',
             hint: 'e.g. Nyamata Health Centre',
