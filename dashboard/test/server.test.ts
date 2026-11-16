@@ -111,6 +111,15 @@ describe('login and logout', () => {
     expect(res.cookies.get('hb_access')).toBeUndefined();
   });
 
+  it('turns away the temporary password until it is replaced in the app', async () => {
+    const token = `h.${Buffer.from(JSON.stringify({ role: 'supervisor', mc: true })).toString('base64url')}.s`;
+    mockFetch(() => json({ idToken: token, refreshToken: 'R1', displayName: 'New Supervisor' }));
+    const res = await login(request('/api/auth/login', { method: 'POST', body: credentials }));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'must_change' });
+    expect(res.cookies.get('hb_access')).toBeUndefined();
+  });
+
   it('passes the API error through and checks the body first', async () => {
     mockFetch(() => json({ error: { message: 'INVALID_LOGIN_CREDENTIALS' } }, 400));
     const bad = await login(request('/api/auth/login', { method: 'POST', body: credentials }));

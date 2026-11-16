@@ -3,16 +3,18 @@
 //   POST /auth/reset/request   flags "forgot my PIN/password" for an admin
 //   POST /auth/reset/verify    the texted code -> a 10-minute reset token
 //   POST /auth/reset/complete  reset token + new PIN and/or password
+//   POST /auth/change          first sign-in: replaces the temporary PIN/password the admin's SMS gave
 // Email + password and phone + SMS code sign-in go straight to Firebase Auth from the app.
 import { hash, verify } from '@node-rs/argon2';
 import { Router } from 'express';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { audit, findUser, password, phone, pin } from '../accounts';
+import { audit, clearMustChange, findUser, password, phone, pin } from '../accounts';
 import { env } from '../env';
 import type { Fb } from '../firebase';
 import { HttpError } from '../http';
+import { callerOf, requireUser } from '../middleware/auth';
 
 export const MAX_FAILED_LOGINS = 5;
 export const LOCK_MS = 15 * 60_000;
@@ -30,6 +32,7 @@ const verifyBody = z.intersection(who, z.object({ code: z.string().regex(/^\d{6}
 const completeBody = z
   .object({ resetToken: z.string().min(1), pin: pin.optional(), password: password.optional() })
   .refine((b) => b.pin || b.password, 'give a new PIN or password');
+const changeBody = z.object({ pin: pin.optional(), password: password.optional() });
 
 export function authRouter(fb: Fb) {
   const router = Router();
@@ -125,9 +128,29 @@ export function authRouter(fb: Fb) {
       if (!account.email) throw new HttpError(400, 'no_email_on_account');
       await fb.auth.updateUser(claims.sub, { password: b.password });
     }
+    await clearMustChange(fb, claims.sub);
     // Anyone signed in with the old details is signed out.
     await fb.auth.revokeRefreshTokens(claims.sub);
     await audit(fb, claims.sub, 'reset.complete', 'resetRequests', ref.id);
+    res.json({ ok: true });
+  });
+
+  // Only while the account still has its temporary details (the `mc` claim), so a stolen session
+  // cannot quietly change someone's PIN or password; later changes go through Forgot PIN/password.
+  router.post('/change', requireUser(fb), async (req, res) => {
+    const b = changeBody.parse(req.body);
+    const uid = callerOf(res).uid;
+    const account = await fb.auth.getUser(uid);
+    if (!account.customClaims?.mc) throw new HttpError(403, 'nothing_to_change');
+    const hasPin = (await credentials.doc(uid).get()).data()?.pinHash;
+    // Every temporary secret must be replaced: a PIN if there is one, a password if there is an email.
+    if ((hasPin && !b.pin) || (account.email && !b.password)) throw new HttpError(400, 'invalid_request');
+    if (b.pin && hasPin) {
+      await credentials.doc(uid).set({ pinHash: await hash(b.pin), failedLogins: 0, lockedUntil: null }, { merge: true });
+    }
+    if (b.password && account.email) await fb.auth.updateUser(uid, { password: b.password });
+    await clearMustChange(fb, uid);
+    await audit(fb, uid, 'credentials.change', 'users', uid);
     res.json({ ok: true });
   });
 

@@ -78,7 +78,8 @@ class AdminRepository {
     return j['id'] as String;
   }
 
-  /// A CHW (phone + PIN, optional email + password) or a supervisor (email + password).
-  Future<void> createUser(Map<String, Object?> account) =>
-      _api.post('/admin/users', account);
+  /// A CHW (phone, optional email) or a supervisor (phone + email). The server texts them temporary
+  /// sign-in details; returns false when that SMS could not be sent.
+  Future<bool> createUser(Map<String, Object?> account) async =>
+      (await _api.post('/admin/users', account))['smsSent'] == true;
 }

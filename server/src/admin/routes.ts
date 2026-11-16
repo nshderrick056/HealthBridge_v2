@@ -1,10 +1,10 @@
 // Admin-only: health centres, accounts (there is no self sign-up), and approving reset requests.
-import { randomInt } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { hash } from '@node-rs/argon2';
 import { Router } from 'express';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import { accountInput, audit, createAccount, phone, type UserDoc } from '../accounts';
+import { type AccountInput, audit, createAccount, newAccountInput, phone, type UserDoc } from '../accounts';
 import type { Fb } from '../firebase';
 import { HttpError } from '../http';
 import { callerOf, requireRole, requireUser } from '../middleware/auth';
@@ -44,11 +44,32 @@ export function adminRouter(fb: Fb, sender: SmsSender) {
     res.status(201).json({ id: ref.id, name: b.name });
   });
 
+  /**
+   * The server makes a temporary PIN (CHW) and/or password (with an email) and texts them to the new
+   * user, who must set their own at first sign-in. The admin never sees them.
+   */
   router.post('/users', async (req, res) => {
-    const b = accountInput.parse(req.body);
-    const id = await createAccount(fb, b);
+    const b = newAccountInput.parse(req.body);
+    const pin = b.role === 'chw' ? randomInt(1_000_000).toString().padStart(6, '0') : undefined;
+    const password = b.email ? randomBytes(9).toString('base64url') : undefined;
+    const id = await createAccount(fb, { ...b, pin, password } as AccountInput, undefined, true);
     await audit(fb, callerOf(res).uid, 'user.create', 'users', id);
-    res.status(201).json({ id, role: b.role, fullName: b.fullName });
+
+    const parts = [
+      pin && `PIN ${pin}`,
+      password && `email ${b.email} and password ${password}`,
+    ].filter(Boolean);
+    let smsSent = true;
+    try {
+      await sender.send(
+        b.phone,
+        `HealthBridge: your account is ready. Sign in with ${parts.join(', or ')}. You will then choose your own.`,
+      );
+    } catch {
+      // The account stands; the user can still get in through Forgot PIN/password.
+      smsSent = false;
+    }
+    res.status(201).json({ id, role: b.role, fullName: b.fullName, smsSent });
   });
 
   /** Reset requests waiting for an admin, oldest first. */

@@ -37,8 +37,24 @@ export const accountInput = z.discriminatedUnion('role', [
 ]);
 export type AccountInput = z.infer<typeof accountInput>;
 
-/** Creates the account; `uid` fixes the ID (the seed script uses stable ones). Returns the new user's ID. */
-export async function createAccount(fb: Fb, a: AccountInput, uid?: string): Promise<string> {
+/** What the admin's form sends: no PIN or password, the server makes temporary ones and texts them. */
+export const newAccountInput = z.discriminatedUnion('role', [
+  z.object({
+    role: z.literal('chw'),
+    ...person,
+    chwRole: z.enum(['asm', 'binome']),
+    village: z.string().trim().min(1).max(200),
+    email: z.email().optional(),
+  }),
+  z.object({ role: z.literal('supervisor'), ...person, email: z.email() }),
+]);
+
+/**
+ * Creates the account; `uid` fixes the ID (the seed script uses stable ones). Returns the new user's ID.
+ * `mustChange`: the PIN/password are temporary; the `mc` claim keeps the user on the change screen until
+ * they set their own (POST /auth/change).
+ */
+export async function createAccount(fb: Fb, a: AccountInput, uid?: string, mustChange = false): Promise<string> {
   const centre = await fb.fs.collection('healthCenters').doc(a.healthCenterId).get();
   if (!centre.exists) throw new HttpError(400, 'unknown_health_center');
 
@@ -59,7 +75,7 @@ export async function createAccount(fb: Fb, a: AccountInput, uid?: string): Prom
   }
   const role: Role = a.role;
   // The rules read role and health centre from the sign-in token, so the user cannot change them.
-  await fb.auth.setCustomUserClaims(user.uid, { role, hc: a.healthCenterId });
+  await fb.auth.setCustomUserClaims(user.uid, { role, hc: a.healthCenterId, ...(mustChange && { mc: true }) });
 
   const batch = fb.fs.batch();
   batch.set(fb.fs.collection('users').doc(user.uid), {
@@ -113,6 +129,12 @@ export async function createAdmin(
     createdAt: FieldValue.serverTimestamp(),
   });
   return user.uid;
+}
+
+/** The user has set their own PIN/password: drops the `mc` claim (it leaves their next ID token). */
+export async function clearMustChange(fb: Fb, uid: string) {
+  const { mc, ...rest } = (await fb.auth.getUser(uid)).customClaims ?? {};
+  if (mc) await fb.auth.setCustomUserClaims(uid, rest);
 }
 
 /** Records who did what; read only by the server and in the Firebase console. */

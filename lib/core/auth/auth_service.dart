@@ -21,6 +21,8 @@ class Session {
     required this.fullName,
     this.role = 'chw',
     this.healthCenterId,
+    this.email,
+    this.mustChange = false,
   });
 
   /// The Firebase ID token, sent to the HealthBridge API as `Authorization: Bearer ...`.
@@ -31,6 +33,10 @@ class Session {
   /// chw | supervisor | admin
   final String role;
   final String? healthCenterId;
+  final String? email;
+
+  /// Signed in with the temporary PIN/password the admin's SMS gave: the user must set their own first.
+  final bool mustChange;
 }
 
 class AuthException implements Exception {
@@ -203,16 +209,42 @@ class AuthService {
     }
   }
 
+  /// First sign-in: replaces the temporary PIN and/or password, then returns the session without the
+  /// must-change flag.
+  Future<Session> changeOwn({String? pin, String? password}) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw AuthException('Your session has ended. Log in again.');
+    }
+    final res = await _post('/auth/change', {
+      'pin': ?pin,
+      'password': ?password,
+    }, token: await user.getIdToken());
+    if (res.statusCode != 200) {
+      throw AuthException(
+        'Could not save. Check your connection and try again.',
+      );
+    }
+    return _session(user, forceRefresh: true);
+  }
+
   Map<String, String> _who(String? phone, String? email) => email != null
       ? {'email': email.trim()}
       : {'phone': normalizePhone(phone ?? '')};
 
-  Future<http.Response> _post(String path, Map<String, Object?> body) async {
+  Future<http.Response> _post(
+    String path,
+    Map<String, Object?> body, {
+    String? token,
+  }) async {
     try {
       return await _client
           .post(
             Uri.parse('$baseUrl$path'),
-            headers: {'content-type': 'application/json'},
+            headers: {
+              'content-type': 'application/json',
+              if (token != null) 'authorization': 'Bearer $token',
+            },
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 10));
@@ -242,6 +274,8 @@ class AuthService {
       fullName: user.displayName ?? '',
       role: claims['role'] as String? ?? 'chw',
       healthCenterId: claims['hc'] as String?,
+      email: user.email,
+      mustChange: claims['mc'] == true,
     );
   }
 }

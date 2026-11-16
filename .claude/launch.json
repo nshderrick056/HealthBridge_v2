@@ -7,6 +7,12 @@
       "runtimeArgs": ["--prefix", "server", "run", "dev"],
       "port": 3000,
       "url": "http://localhost:3000"
+    },
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "dashboard", "run", "dev"],
+      "port": 3001
     }
   ]
 }

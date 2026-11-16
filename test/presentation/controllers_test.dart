@@ -121,6 +121,44 @@ void main() {
       expect(c.read(sessionProvider)?.fullName, 'Claudine Mukamana');
       expect(c.read(settingsProvider).savedLoginId, '+250780000101');
     });
+
+    test(
+      'temporary details from the admin must be changed, signed in',
+      () async {
+        final calls = <http.Request>[];
+        final service = AuthService(
+          baseUrl: 'http://api.test',
+          auth: MockFirebaseAuth(
+            mockUser: MockUser(
+              uid: 'u1',
+              displayName: 'Claudine Mukamana',
+              customClaim: {'role': 'chw', 'hc': 'hc-a', 'mc': true},
+            ),
+          ),
+          client: MockClient((req) async {
+            calls.add(req);
+            return http.Response(
+              req.url.path == '/auth/pin'
+                  ? jsonEncode({'customToken': 'custom-token'})
+                  : '{"ok":true}',
+              200,
+            );
+          }),
+        );
+        final c = await container(auth: service);
+        c.listen(loginControllerProvider, (_, _) {});
+        await c
+            .read(loginControllerProvider.notifier)
+            .submit('+250780000101', '123456');
+        expect(c.read(sessionProvider)?.mustChange, isTrue);
+
+        await service.changeOwn(pin: '2468');
+        final change = calls.last;
+        expect(change.url.path, '/auth/change');
+        expect(change.headers['authorization'], startsWith('Bearer '));
+        expect(jsonDecode(change.body), {'pin': '2468'});
+      },
+    );
   });
 
   test('the patients search and filter keep each other', () async {

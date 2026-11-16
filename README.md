@@ -22,6 +22,10 @@ SMS fallback for urgent alerts. The specs are in [documents/](documents/).
   Firebase. Each account carries its role (`chw`, `supervisor`, `admin`) and health centre as custom claims.
   Three ways in: **phone + PIN** (the server checks the PIN and returns a Firebase custom token), **phone + SMS
   code** (Firebase texts it), **email + password**. After sign-in the app opens the screens for the role.
+- **New accounts.** The admin enters the person's details only; the server makes a random temporary PIN (CHW)
+  and/or password (with an email) and texts them to the person. At first sign-in the app asks them to choose
+  their own before anything else, and the dashboard refuses the temporary password. The SMS gateway carries them;
+  the admin never sees them.
 - **Forgot PIN or password.** The user asks in the app; the admin approves it on the Resets tab; the server texts
   a one-time code (hashed, 30 minutes, 5 tries); the user enters it and sets a new PIN or password, and is signed
   out everywhere else.
@@ -51,7 +55,7 @@ SMS fallback for urgent alerts. The specs are in [documents/](documents/).
 | Urgent alert by internet; supervisor inbox, escalate with note; admin new account and reset approval | done, tested on a phone |
 | Offline SMS alert and merge on Firebase | code and server tests done; last phone run was on the Postgres version (1 Nov) |
 | Web dashboard on Firebase sign-in | done, tested by unit tests only |
-| Tests | 125 Flutter (unit, widget, layout at 3 screen sizes), 42 server (Firebase emulators), 31 dashboard |
+| Tests | 127 Flutter (unit, widget, layout at 3 screen sizes), 43 server (Firebase emulators), 32 dashboard |
 
 ## Phone tests
 

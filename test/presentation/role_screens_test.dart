@@ -8,6 +8,7 @@ import 'package:health_bridge/data/providers.dart';
 import 'package:health_bridge/data/repositories/supervision_repository.dart';
 import 'package:health_bridge/domain/entities/supervision.dart';
 import 'package:health_bridge/presentation/admin/admin_screens.dart';
+import 'package:health_bridge/presentation/auth/change_secret_screen.dart';
 import 'package:health_bridge/presentation/supervisor/case_screen.dart';
 import 'package:health_bridge/presentation/supervisor/inbox_screen.dart';
 
@@ -203,5 +204,29 @@ void main() {
     expect(repo.centreNames.last, 'Gashora Health Centre');
     expect(repo.lastCall, '+250788123456');
     expect(find.text('Gashora Health Centre'), findsOneWidget);
+  });
+
+  testWidgets('first sign-in asks a CHW for their own PIN, typed twice', (
+    tester,
+  ) async {
+    await pump(tester, const ChangeSecretScreen(), [
+      sessionProvider.overrideWith(
+        (ref) => const Session(
+          accessToken: 't',
+          userId: 'u1',
+          fullName: 'Mukamana Alice',
+          mustChange: true,
+        ),
+      ),
+    ]);
+    expect(find.text('Choose your own PIN'), findsOneWidget);
+    expect(find.text('New password'), findsNothing); // no email, no password
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), '2468');
+    await tester.enterText(fields.at(1), '1357');
+    await tester.tap(find.text('Save and continue'));
+    await tester.pump();
+    expect(find.text('The PINs differ'), findsOneWidget);
   });
 }

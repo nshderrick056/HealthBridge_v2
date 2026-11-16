@@ -42,7 +42,7 @@ function firebaseKey() {
 }
 
 export type FirebaseSignIn =
-  | { ok: true; idToken: string; refreshToken: string; name: string; role: string | null }
+  | { ok: true; idToken: string; refreshToken: string; name: string; role: string | null; mustChange: boolean }
   | { ok: false; status: number; error: string };
 
 /** Email + password sign-in with Firebase Auth. The role comes from the token's custom claims. */
@@ -71,13 +71,14 @@ export async function firebaseSignIn(email: string, password: string): Promise<F
     refreshToken: body.refreshToken,
     name: body.displayName ?? '',
     role: claimsOf(body.idToken).role ?? null,
+    mustChange: claimsOf(body.idToken).mc === true,
   };
 }
 
 /** The token's claims. Read only to choose what to show: the API verifies the token on every call. */
-function claimsOf(idToken: string): { role?: string } {
+function claimsOf(idToken: string): { role?: string; mc?: boolean } {
   try {
-    return JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url').toString()) as { role?: string };
+    return JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url').toString()) as { role?: string; mc?: boolean };
   } catch {
     return {};
   }

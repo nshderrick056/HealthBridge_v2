@@ -161,13 +161,16 @@ class NewAccountController extends Notifier<NewAccountState> {
   Future<String?> create(Map<String, Object?> fields) async {
     state = state.copyWith(busy: true);
     try {
-      await ref.read(adminRepositoryProvider).createUser({
+      final smsSent = await ref.read(adminRepositoryProvider).createUser({
         ...fields,
         'role': state.role,
         'healthCenterId': state.centreId,
         if (state.role == 'chw') 'chwRole': state.chwRole,
       });
-      return null;
+      return smsSent
+          ? null
+          : 'Account created, but the SMS with the sign-in details failed. '
+                'They can get in with Forgot PIN/password.';
     } on ApiException catch (e) {
       return switch (e.code) {
         'phone_or_email_taken' =>
@@ -187,8 +190,8 @@ final newAccountProvider =
       NewAccountController.new,
     );
 
-/// Creates a CHW (phone + PIN, optional email + password) or a supervisor (email + password).
-/// Stateful only to own the text controllers.
+/// Creates a CHW (phone, optional email) or a supervisor (phone + email). The server texts them a
+/// temporary PIN/password, which they replace at first sign-in. Stateful only to own the text controllers.
 class NewAccountScreen extends ConsumerStatefulWidget {
   const NewAccountScreen({super.key});
 
@@ -200,14 +203,12 @@ class _NewAccountScreenState extends ConsumerState<NewAccountScreen> {
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _phone = TextEditingController();
-  final _pin = TextEditingController();
   final _village = TextEditingController();
   final _email = TextEditingController();
-  final _password = TextEditingController();
 
   @override
   void dispose() {
-    for (final c in [_name, _phone, _pin, _village, _email, _password]) {
+    for (final c in [_name, _phone, _village, _email]) {
       c.dispose();
     }
     super.dispose();
@@ -220,17 +221,21 @@ class _NewAccountScreenState extends ConsumerState<NewAccountScreen> {
     final error = await ref.read(newAccountProvider.notifier).create({
       'fullName': _name.text.trim(),
       'phone': normalizePhone(_phone.text),
-      if (isChw) 'pin': _pin.text.trim(),
       if (isChw) 'village': _village.text.trim(),
       if (_email.text.trim().isNotEmpty) 'email': _email.text.trim(),
-      if (_password.text.isNotEmpty) 'password': _password.text,
     });
-    if (error == null) {
-      for (final c in [_name, _phone, _pin, _village, _email, _password]) {
+    if (error == null || error.startsWith('Account created')) {
+      for (final c in [_name, _phone, _village, _email]) {
         c.clear();
       }
     }
-    messenger.showSnackBar(SnackBar(content: Text(error ?? 'Account created')));
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          error ?? 'Account created. Their sign-in details were sent by SMS.',
+        ),
+      ),
+    );
   }
 
   @override
@@ -245,7 +250,7 @@ class _NewAccountScreenState extends ConsumerState<NewAccountScreen> {
         children: [
           const PageHeader(
             title: 'New account',
-            subtitle: 'There is no self sign-up; accounts are made here',
+            subtitle: 'The person gets a temporary PIN or password by SMS and sets their own at first sign-in',
           ),
           Wrap(
             spacing: 8,
@@ -314,14 +319,6 @@ class _NewAccountScreenState extends ConsumerState<NewAccountScreen> {
               controller: _village,
               validator: requiredField,
             ),
-            HbTextField(
-              label: 'First PIN',
-              hint: '4 to 6 digits; they can change it with Forgot PIN',
-              controller: _pin,
-              keyboardType: TextInputType.number,
-              obscure: true,
-              validator: validatePin,
-            ),
           ],
           HbTextField(
             label: isChw ? 'Email (optional)' : 'Email',
@@ -331,17 +328,6 @@ class _NewAccountScreenState extends ConsumerState<NewAccountScreen> {
             validator: (v) => isChw && (v == null || v.trim().isEmpty)
                 ? null
                 : validateEmail(v),
-          ),
-          HbTextField(
-            label: isChw ? 'Password (with an email)' : 'Password',
-            hint: 'At least 8 characters',
-            controller: _password,
-            obscure: true,
-            validator: (v) {
-              final email = _email.text.trim().isNotEmpty;
-              if (isChw && !email && (v == null || v.isEmpty)) return null;
-              return validatePassword(v);
-            },
           ),
           HbButton.primary(
             s.busy ? 'Creating...' : 'Create account',
