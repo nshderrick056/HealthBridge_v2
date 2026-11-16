@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Home, Patients, Record Visit (raised), Alerts, Profile. [current] is null on screens that sit
-/// under no tab (the record flow).
+/// Floating dark pill: Home, Patients, Record Visit (lime, in the middle), Alerts, Profile.
+/// [current] is null on screens that sit under no tab (the record flow).
 class HbBottomNav extends StatelessWidget {
   const HbBottomNav({super.key, required this.current, required this.onTap});
 
@@ -12,56 +12,61 @@ class HbBottomNav extends StatelessWidget {
 
   static const _items = [
     (Icons.home_outlined, 'Home'),
-    (Icons.person_outline, 'Patients'),
-    (Icons.add_circle_outline, 'Record Visit'),
-    (Icons.error_outline, 'Alerts'),
+    (Icons.people_outline, 'Patients'),
+    (Icons.add, 'Record Visit'),
+    (Icons.warning_amber_rounded, 'Alerts'),
     (Icons.person_outline, 'Profile'),
   ];
 
+  static const _inactive = Color(0xFF9AA5A1);
+
   @override
-  Widget build(BuildContext context) => Container(
-    height: 72,
-    padding: const EdgeInsets.all(8),
-    decoration: const BoxDecoration(
-      color: HbColors.white,
-      border: Border(top: BorderSide(color: HbColors.border)),
-    ),
-    child: Row(
-      children: [
-        for (var i = 0; i < _items.length; i++)
-          Expanded(
-            child: InkWell(
-              onTap: () => onTap(i),
-              child: i == 2 ? _record(_items[i]) : _item(i, _items[i]),
-            ),
-          ),
-      ],
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Container(
+        height: 68,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(
+          color: HbColors.ink,
+          borderRadius: BorderRadius.circular(34),
+          boxShadow: HbShadows.card,
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < _items.length; i++)
+              Expanded(
+                child: Semantics(
+                  selected: current == i,
+                  button: true,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(28),
+                    onTap: () => onTap(i),
+                    child: i == 2 ? _record(_items[i]) : _item(i, _items[i]),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     ),
   );
 
   Widget _item(int i, (IconData, String) item) {
     final on = current == i;
+    final color = on ? HbColors.lime : _inactive;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: on ? HbColors.tealTint : Colors.transparent,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            item.$1,
-            size: 19,
-            color: on ? HbColors.teal : HbColors.textSecondary,
-          ),
-        ),
+        Icon(item.$1, size: 22, color: color),
         const SizedBox(height: 3),
         Text(
           item.$2,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: HbText.caption.copyWith(
-            color: on ? HbColors.teal : HbColors.textSecondary,
+            color: on ? Colors.white : _inactive,
             fontWeight: on ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
@@ -73,20 +78,21 @@ class HbBottomNav extends StatelessWidget {
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
       Container(
-        width: 36,
-        height: 36,
-        decoration: const BoxDecoration(
-          color: HbColors.teal,
-          shape: BoxShape.circle,
+        width: 48,
+        height: 34,
+        decoration: BoxDecoration(
+          color: HbColors.lime,
+          borderRadius: BorderRadius.circular(17),
         ),
-        child: Icon(item.$1, size: 20, color: Colors.white),
+        child: Icon(item.$1, size: 22, color: HbColors.ink),
       ),
-      const SizedBox(height: 3),
+      const SizedBox(height: 2),
       Text(
         item.$2,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: HbText.caption.copyWith(
-          fontSize: 9,
-          color: HbColors.teal,
+          color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
       ),

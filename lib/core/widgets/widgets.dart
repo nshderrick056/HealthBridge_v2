@@ -2,91 +2,140 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// White, bordered, 12 dp card used for every grouped block in the design.
+/// White, 24 dp, softly shadowed card: one per section, never nested.
 class HbCard extends StatelessWidget {
   const HbCard({
     super.key,
     required this.child,
     this.color = HbColors.white,
-    this.borderColor = HbColors.border,
-    this.padding = const EdgeInsets.all(14),
-    this.shadow = false,
+    this.borderColor,
+    this.padding = const EdgeInsets.all(18),
+    this.shadow = true,
     this.onTap,
   });
 
   final Widget child;
   final Color color;
-  final Color borderColor;
+  final Color? borderColor;
   final EdgeInsets padding;
   final bool shadow;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final box = Container(
+    final radius = BorderRadius.circular(24);
+    return Container(
       width: double.infinity,
-      padding: padding,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-        boxShadow: shadow
-            ? const [
-                BoxShadow(
-                  color: Color(0x12123D35),
-                  blurRadius: 12,
-                  offset: Offset(0, 3),
-                ),
-              ]
-            : null,
+        borderRadius: radius,
+        border: borderColor == null ? null : Border.all(color: borderColor!),
+        boxShadow: shadow && color == HbColors.white ? HbShadows.card : null,
       ),
-      child: child,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
     );
-    return onTap == null
-        ? box
-        : GestureDetector(
-            onTap: onTap,
-            behavior: HitTestBehavior.opaque,
-            child: box,
-          );
   }
 }
 
+/// Green gradient card for the one thing to do next (a due visit, the patient header).
+class HbGradientCard extends StatelessWidget {
+  const HbGradientCard({
+    super.key,
+    required this.child,
+    this.gradient = HbGradients.brand,
+    this.padding = const EdgeInsets.all(20),
+    this.onTap,
+  });
+
+  final Widget child;
+  final Gradient gradient;
+  final EdgeInsets padding;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(24);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(gradient: gradient, borderRadius: radius),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+enum _ButtonKind { primary, secondary, danger, light }
+
+/// 56 dp pill. Primary is dark ink; danger (red) only when the press sends an alert; light is
+/// the white pill on green screens.
 class HbButton extends StatelessWidget {
   const HbButton.primary(this.label, {super.key, this.icon, this.onPressed})
-    : primary = true;
+    : _kind = _ButtonKind.primary;
   const HbButton.secondary(this.label, {super.key, this.icon, this.onPressed})
-    : primary = false;
+    : _kind = _ButtonKind.secondary;
+  const HbButton.danger(this.label, {super.key, this.icon, this.onPressed})
+    : _kind = _ButtonKind.danger;
+  const HbButton.light(this.label, {super.key, this.icon, this.onPressed})
+    : _kind = _ButtonKind.light;
 
   final String label;
   final IconData? icon;
   final VoidCallback? onPressed;
-  final bool primary;
+  final _ButtonKind _kind;
 
   @override
   Widget build(BuildContext context) {
-    final fg = primary ? Colors.white : HbColors.teal;
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: Material(
-        color: primary ? HbColors.teal : HbColors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: primary ? HbColors.teal : HbColors.border),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onPressed,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20, color: fg),
-                const SizedBox(width: 10),
+    final (bg, fg) = switch (_kind) {
+      _ButtonKind.primary => (HbColors.ink, Colors.white),
+      _ButtonKind.secondary => (HbColors.white, HbColors.ink),
+      _ButtonKind.danger => (HbColors.red, Colors.white),
+      _ButtonKind.light => (HbColors.white, HbColors.ink),
+    };
+    final enabled = onPressed != null;
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: Material(
+          color: bg,
+          shape: StadiumBorder(
+            side: _kind == _ButtonKind.secondary
+                ? const BorderSide(color: HbColors.edge, width: 1.5)
+                : BorderSide.none,
+          ),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onPressed,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20, color: fg),
+                  const SizedBox(width: 10),
+                ],
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: HbText.headingSmall.copyWith(color: fg),
+                  ),
+                ),
               ],
-              Text(label, style: HbText.headingSmall.copyWith(color: fg)),
-            ],
+            ),
           ),
         ),
       ),
@@ -106,6 +155,7 @@ class HbTextField extends StatelessWidget {
     this.validator,
     this.maxLines = 1,
     this.onChanged,
+    this.labelColor = HbColors.ink,
   });
 
   final String label;
@@ -118,48 +168,42 @@ class HbTextField extends StatelessWidget {
   final int maxLines;
   final ValueChanged<String>? onChanged;
 
+  /// White on green screens (sign in).
+  final Color labelColor;
+
   @override
-  Widget build(BuildContext context) {
-    OutlineInputBorder border(Color c) => OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: c),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: HbText.labelMedium),
-        const SizedBox(height: 7),
-        TextFormField(
-          controller: controller,
-          obscureText: obscure,
-          keyboardType: keyboardType,
-          validator: validator,
-          maxLines: maxLines,
-          onChanged: onChanged,
-          style: HbText.bodyMedium,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: HbText.bodyMedium.copyWith(
-              color: HbColors.textSecondary,
-            ),
-            prefixIcon: icon == null
-                ? null
-                : Icon(icon, size: 19, color: HbColors.textSecondary),
-            filled: true,
-            fillColor: HbColors.white,
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: maxLines > 1 ? 14 : 16,
-            ),
-            enabledBorder: border(HbColors.border),
-            focusedBorder: border(HbColors.teal),
-            errorBorder: border(HbColors.red),
-            focusedErrorBorder: border(HbColors.red),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: HbText.labelMedium.copyWith(
+          color: labelColor,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextFormField(
+        controller: controller,
+        obscureText: obscure,
+        keyboardType: keyboardType,
+        validator: validator,
+        maxLines: maxLines,
+        onChanged: onChanged,
+        style: HbText.bodyMedium.copyWith(fontSize: 17),
+        decoration: InputDecoration(
+          hintText: hint,
+          prefixIcon: icon == null
+              ? null
+              : Icon(icon, size: 20, color: HbColors.muted),
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: maxLines > 1 ? 14 : 16,
           ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
 }
 
 enum StatusKind {
@@ -175,85 +219,243 @@ enum StatusKind {
   smsSent,
 }
 
+/// Tinted pill: one word of status, coloured only when it means urgent or due.
 class StatusChip extends StatelessWidget {
   const StatusChip(this.kind, {super.key, this.label});
 
   final StatusKind kind;
   final String? label;
 
+  static (Color, Color, String) style(StatusKind kind) => switch (kind) {
+    StatusKind.online => (HbColors.greenTint, HbColors.brand, 'Online'),
+    StatusKind.offline => (HbColors.neutralTint, HbColors.muted, 'Offline'),
+    StatusKind.pending => (
+      HbColors.neutralTint,
+      HbColors.muted,
+      'Pending sync',
+    ),
+    StatusKind.synced => (HbColors.greenTint, HbColors.brand, 'Synced'),
+    StatusKind.smsSent => (HbColors.greenTint, HbColors.brand, 'SMS sent'),
+    StatusKind.stable => (HbColors.greenTint, HbColors.brand, 'Stable'),
+    StatusKind.followUp => (
+      HbColors.amberTint,
+      HbColors.warning,
+      'Follow-up due',
+    ),
+    StatusKind.urgent => (HbColors.redTint, HbColors.red, 'Urgent'),
+    StatusKind.attention => (
+      HbColors.amberTint,
+      HbColors.warning,
+      'Needs attention',
+    ),
+    StatusKind.failed => (HbColors.redTint, HbColors.red, 'Failed'),
+  };
+
   @override
   Widget build(BuildContext context) {
-    final (bg, fg, text, icon) = switch (kind) {
-      StatusKind.online => (
-        HbColors.greenTint,
-        HbColors.green,
-        'Online',
-        Icons.wifi,
-      ),
-      StatusKind.offline => (
-        HbColors.neutralTint,
-        HbColors.textSecondary,
-        'Offline',
-        Icons.cancel_outlined,
-      ),
-      StatusKind.pending => (
-        HbColors.neutralTint,
-        HbColors.textSecondary,
-        'Pending sync',
-        Icons.cancel_outlined,
-      ),
-      StatusKind.synced => (
-        HbColors.greenTint,
-        HbColors.green,
-        'Synced',
-        Icons.wifi,
-      ),
-      StatusKind.smsSent => (
-        HbColors.greenTint,
-        HbColors.green,
-        'SMS sent',
-        Icons.check,
-      ),
-      StatusKind.stable => (HbColors.greenTint, HbColors.green, 'Stable', null),
-      StatusKind.followUp => (
-        HbColors.amberTint,
-        HbColors.warning,
-        'Follow-up due',
-        null,
-      ),
-      StatusKind.urgent => (HbColors.redTint, HbColors.red, 'Urgent', null),
-      StatusKind.attention => (
-        HbColors.amberTint,
-        HbColors.warning,
-        'Needs attention',
-        null,
-      ),
-      StatusKind.failed => (HbColors.redTint, HbColors.red, 'Failed', null),
+    final (bg, fg, text) = style(kind);
+    return HbPill(label ?? text, background: bg, foreground: fg);
+  }
+}
+
+/// Rounded label with an optional dot or icon, e.g. "Offline · 3 visits not sent yet".
+class HbPill extends StatelessWidget {
+  const HbPill(
+    this.text, {
+    super.key,
+    this.background = HbColors.white,
+    this.foreground = HbColors.ink,
+    this.dot,
+    this.icon,
+  });
+
+  final String text;
+  final Color background;
+  final Color foreground;
+  final Color? dot;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 16, color: foreground),
+          const SizedBox(width: 6),
+        ] else if (dot != null) ...[
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: Text(
+            text,
+            style: HbText.labelSmall.copyWith(color: foreground),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+enum AvatarKind { plain, lime, urgent, due }
+
+/// Initials in a circle; its colour carries the status (red urgent, amber due).
+class HbAvatar extends StatelessWidget {
+  const HbAvatar(
+    this.name, {
+    super.key,
+    this.kind = AvatarKind.plain,
+    this.size = 44,
+  });
+
+  final String name;
+  final AvatarKind kind;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg) = switch (kind) {
+      AvatarKind.plain => (HbColors.tealTint, HbColors.brand),
+      AvatarKind.lime => (HbColors.lime, HbColors.ink),
+      AvatarKind.urgent => (HbColors.red, Colors.white),
+      AvatarKind.due => (const Color(0xFFFBE3A6), HbColors.warning),
     };
     return Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null)
-            Icon(icon, size: 14, color: fg)
-          else
-            Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
-            ),
-          const SizedBox(width: 6),
-          Text(label ?? text, style: HbText.labelSmall.copyWith(color: fg)),
-        ],
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      child: Text(
+        initials(name),
+        style: HbText.labelMedium.copyWith(
+          color: fg,
+          fontSize: size >= 48 ? 18 : 15,
+        ),
       ),
     );
   }
+}
+
+/// 48 dp white circle with one icon, e.g. back.
+class HbCircleButton extends StatelessWidget {
+  const HbCircleButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: Container(
+      width: 48,
+      height: 48,
+      decoration: const BoxDecoration(
+        color: HbColors.white,
+        shape: BoxShape.circle,
+        boxShadow: HbShadows.card,
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Icon(icon, size: 22, color: HbColors.ink),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Round back button with an optional "Step 2 / 3" in the middle.
+class HbStepBar extends StatelessWidget {
+  const HbStepBar({super.key, this.step, this.onBack});
+
+  final String? step;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      HbCircleButton(
+        icon: Icons.chevron_left,
+        tooltip: 'Back',
+        onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+      ),
+      Expanded(
+        child: Text(
+          step ?? '',
+          textAlign: TextAlign.center,
+          style: HbText.bodyMedium.copyWith(
+            color: HbColors.muted,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+      const SizedBox(width: 48),
+    ],
+  );
+}
+
+/// Selectable white chip; the chosen one gets a dark 2 dp outline.
+class HbChoice extends StatelessWidget {
+  const HbChoice(
+    this.label, {
+    super.key,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    button: true,
+    child: Material(
+      color: HbColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: selected ? HbColors.ink : HbColors.line,
+          width: selected ? 2 : 1,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Text(
+              label,
+              style: HbText.bodyMedium.copyWith(
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class PageHeader extends StatelessWidget {
@@ -277,13 +479,38 @@ class PageHeader extends StatelessWidget {
           children: [
             Text(title, style: HbText.headingLarge),
             if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(subtitle!, style: HbText.bodySmall.copyWith(height: 1.4)),
+              const SizedBox(height: 4),
+              Text(subtitle!, style: HbText.bodySmall),
             ],
           ],
         ),
       ),
       ?trailing,
+    ],
+  );
+}
+
+/// Avatar, name and role at the top of a home screen.
+class ProfileHeader extends StatelessWidget {
+  const ProfileHeader({super.key, required this.name, required this.role});
+
+  final String name;
+  final String role;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      HbAvatar(name, kind: AvatarKind.lime, size: 48),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(name, style: HbText.headingSmall),
+            Text(role, style: HbText.bodySmall),
+          ],
+        ),
+      ),
     ],
   );
 }
@@ -300,19 +527,28 @@ class SectionHeading extends StatelessWidget {
   final String title;
   final String? action;
   final VoidCallback? onAction;
+
+  /// Kept for older callers; every section heading is now the same weight.
   final bool bold;
 
   @override
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(title, style: bold ? HbText.sectionBold : HbText.labelMedium),
+      Flexible(child: Text(title, style: HbText.sectionBold)),
       if (action != null)
-        GestureDetector(
+        InkWell(
           onTap: onAction,
-          child: Text(
-            action!,
-            style: HbText.labelSmall.copyWith(color: HbColors.teal),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            child: Text(
+              action!,
+              style: HbText.bodyMedium.copyWith(
+                color: HbColors.muted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ),
     ],
@@ -328,16 +564,18 @@ class DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(label, style: HbText.bodySmall),
+      Text(label, style: HbText.bodyMedium.copyWith(color: HbColors.muted)),
       const SizedBox(width: 12),
       Flexible(
         child: Text(
           value,
           textAlign: TextAlign.right,
-          style: HbText.labelMedium.copyWith(
-            color: valueColor ?? HbColors.textPrimary,
+          style: HbText.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+            color: valueColor ?? HbColors.ink,
           ),
         ),
       ),
@@ -345,6 +583,8 @@ class DetailRow extends StatelessWidget {
   );
 }
 
+/// A count and what it counts. [icon] and [tint] are kept for older callers; v3 shows the number
+/// alone, coloured only when it means urgent or due.
 class SummaryCard extends StatelessWidget {
   const SummaryCard({
     super.key,
@@ -362,39 +602,21 @@ class SummaryCard extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Container(
-    // A floor, not a fixed height: fallback fonts and large system text sizes need more room.
-    constraints: const BoxConstraints(minHeight: 100),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: HbColors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: HbColors.border),
-    ),
+  Widget build(BuildContext context) => HbCard(
+    padding: const EdgeInsets.all(16),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      spacing: 8,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: tint,
-            borderRadius: BorderRadius.circular(8),
+        Text(
+          '$value',
+          style: HbText.headingLarge.copyWith(
+            color: color == HbColors.red || color == HbColors.warning
+                ? color
+                : HbColors.ink,
           ),
-          child: Icon(icon, size: 15, color: color),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('$value', style: HbText.headingLarge),
-            Text(
-              label,
-              style: HbText.bodySmall.copyWith(fontSize: 11, height: 1.2),
-            ),
-          ],
-        ),
+        Text(label, style: HbText.bodySmall),
       ],
     ),
   );
@@ -414,6 +636,12 @@ class SummaryRow extends StatelessWidget {
     ),
   );
 }
+
+AvatarKind avatarFor(StatusKind status) => switch (status) {
+  StatusKind.urgent || StatusKind.failed => AvatarKind.urgent,
+  StatusKind.followUp || StatusKind.attention => AvatarKind.due,
+  _ => AvatarKind.plain,
+};
 
 class PatientCard extends StatelessWidget {
   const PatientCard({
@@ -435,50 +663,31 @@ class PatientCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => HbCard(
-    shadow: true,
     onTap: onTap,
-    child: Column(
+    padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+    child: Row(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: HbText.headingSmall),
-                  const SizedBox(height: 3),
-                  Text(detail, style: HbText.bodySmall),
-                ],
-              ),
-            ),
-            StatusChip(status),
-          ],
+        HbAvatar(name, kind: avatarFor(status)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: HbText.headingSmall),
+              const SizedBox(height: 2),
+              Text(detail, style: HbText.bodySmall),
+              Text('$village · $when', style: HbText.bodySmall),
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.person_outline,
-                  size: 13,
-                  color: HbColors.textSecondary,
-                ),
-                const SizedBox(width: 5),
-                Text(village, style: HbText.bodySmall),
-              ],
-            ),
-            Text(when, style: HbText.bodySmall),
-          ],
-        ),
+        const SizedBox(width: 8),
+        StatusChip(status),
       ],
     ),
   );
 }
 
-/// Round icon + bold title + secondary text, used for the confirmation and urgent notices.
+/// Icon + bold title + secondary text on a tinted card, for confirmations and notices.
 class NoticeCard extends StatelessWidget {
   const NoticeCard({
     super.key,
@@ -498,20 +707,18 @@ class NoticeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => HbCard(
     color: tint,
-    borderColor: color == HbColors.green ? HbColors.border : color,
+    shadow: false,
     child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 32,
+          height: 32,
           alignment: Alignment.center,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           child: Text(
             glyph,
-            style: HbText.headingMedium.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
+            style: HbText.labelMedium.copyWith(color: Colors.white),
           ),
         ),
         const SizedBox(width: 12),
@@ -520,8 +727,8 @@ class NoticeCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: HbText.headingSmall),
-              const SizedBox(height: 3),
-              Text(body, style: HbText.bodySmall),
+              const SizedBox(height: 4),
+              Text(body, style: HbText.bodyMedium),
             ],
           ),
         ),
@@ -538,19 +745,19 @@ class BulletLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 3),
+    padding: const EdgeInsets.symmetric(vertical: 5),
     child: Row(
       children: [
         Container(
-          width: 7,
-          height: 7,
+          width: 10,
+          height: 10,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             text,
-            style: HbText.bodySmall.copyWith(color: HbColors.textPrimary),
+            style: HbText.bodyMedium.copyWith(fontWeight: FontWeight.w500),
           ),
         ),
       ],
@@ -563,10 +770,10 @@ class HbDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const Divider(height: 1, thickness: 1, color: HbColors.divider);
+      const Divider(height: 1, thickness: 1, color: HbColors.line);
 }
 
-/// Scrolling page body with the design's 18 dp side padding and 12 dp rhythm.
+/// Scrolling page body with 20 dp side padding and a 16 dp rhythm.
 class PageBody extends StatelessWidget {
   const PageBody({super.key, required this.children});
 
@@ -576,9 +783,9 @@ class PageBody extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
     bottom: false,
     child: ListView.separated(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       itemCount: children.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 16),
       itemBuilder: (_, i) => children[i],
     ),
   );

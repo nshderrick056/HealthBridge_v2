@@ -88,15 +88,17 @@ flutter:
   # For details regarding adding assets from package dependencies, see
   # https://flutter.dev/to/asset-from-package
 
-  # Inter v4.1 (the Figma typeface), SIL Open Font License: assets/fonts/Inter-LICENSE.txt.
-  # Only the weights the app uses; another weight falls back to the nearest one.
+  # Outfit (the Figma v3 typeface, github.com/Outfitio/Outfit-Fonts), SIL Open Font License:
+  # assets/fonts/Outfit-LICENSE.txt. Only the weights the app uses.
   fonts:
-    - family: Inter
+    - family: Outfit
       fonts:
-        - asset: assets/fonts/Inter-Regular.ttf
-        - asset: assets/fonts/Inter-SemiBold.ttf
+        - asset: assets/fonts/Outfit-Regular.ttf
+        - asset: assets/fonts/Outfit-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Outfit-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Inter-Bold.ttf
+        - asset: assets/fonts/Outfit-Bold.ttf
           weight: 700
 
 # SQLCipher build of sqlite3, so the on-device database is encrypted at rest (PRD 6).
