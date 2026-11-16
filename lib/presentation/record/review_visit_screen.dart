@@ -53,136 +53,94 @@ class ReviewVisitScreen extends ConsumerWidget {
         .split('\n')
         .where((l) => l.trim().isNotEmpty)
         .toList();
-    final view = PatientView(f.patient, const []);
+    final urgent = f.signs.isNotEmpty;
+    final now = DateTime.now();
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: HbColors.surface,
-        elevation: 0,
-        foregroundColor: HbColors.textPrimary,
-        toolbarHeight: 44,
-      ),
       bottomNavigationBar: const SubPageNav(current: 2),
       body: PageBody(
         children: [
-          const PageHeader(
-            title: 'Review visit',
-            subtitle: 'Check details before submitting',
-          ),
-          HbCard(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Patient details', style: HbText.labelMedium),
-                const SizedBox(height: 7),
-                Text(f.patient.fullName, style: HbText.headingSmall),
-                const SizedBox(height: 7),
-                Text(
-                  [
-                    if (view.ageSex.isNotEmpty) view.ageSex,
-                    f.patient.village,
-                    f.patient.shortId,
-                  ].join(' \u00B7 '),
-                  style: HbText.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          HbCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Visit summary', style: HbText.labelMedium),
-                const SizedBox(height: 8),
-                DetailRow('Visit type', visitTypeLabel(f.type)),
-                const SizedBox(height: 8),
-                DetailRow('Visit date', fullDate(DateTime.now())),
-                const SizedBox(height: 8),
-                const HbDivider(),
-                if (symptoms.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Symptoms / observations',
-                    style: HbText.labelSmall.copyWith(
-                      color: HbColors.textSecondary,
-                    ),
-                  ),
-                  for (final s in symptoms) BulletLine(s, HbColors.tealTint),
-                ],
-                if (f.signs.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Danger signs',
-                    style: HbText.labelSmall.copyWith(color: HbColors.red),
-                  ),
-                  for (final c in f.signs)
-                    BulletLine(labels[c] ?? c, HbColors.red),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  'Key assessment',
-                  style: HbText.labelSmall.copyWith(
-                    color: HbColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                if (f.temperature != null) ...[
-                  DetailRow('Temperature', '${f.temperature} \u00B0C'),
-                  const SizedBox(height: 5),
-                ],
-                DetailRow('General condition', f.condition),
-                if (f.notes.trim().isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Notes',
-                    style: HbText.labelSmall.copyWith(
-                      color: HbColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    f.notes.trim(),
-                    style: HbText.bodySmall.copyWith(
-                      color: HbColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Connectivity status', style: HbText.labelSmall),
-                    const SizedBox(height: 2),
-                    Text(
-                      online
-                          ? 'Ready to submit now'
-                          : 'Will be saved and synced later',
-                      style: HbText.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              StatusChip(online ? StatusKind.online : StatusKind.offline),
-            ],
-          ),
+          const HbStepBar(step: 'Step 3 / 3'),
           Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              HbButton.primary(
-                busy ? 'Saving...' : 'Submit visit',
-                icon: Icons.add_circle_outline,
-                onPressed: busy ? null : () => _submit(context, ref),
-              ),
-              const SizedBox(height: 8),
-              HbButton.secondary(
-                'Edit',
-                onPressed: () => Navigator.of(context).pop(),
+              Text('Check and save', style: HbText.headingLarge),
+              const SizedBox(height: 4),
+              Text(
+                '${f.patient.fullName} · today ${clock(now)}',
+                style: HbText.bodySmall,
               ),
             ],
+          ),
+          if (urgent)
+            HbCard(
+              color: HbColors.red,
+              shadow: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This visit is urgent',
+                    style: HbText.headingSmall.copyWith(color: Colors.white),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'After saving, you send the alert to the health centre.',
+                    style: HbText.bodySmall.copyWith(color: HbColors.onRed),
+                  ),
+                ],
+              ),
+            ),
+          const SectionHeading('Visit'),
+          HbCard(
+            child: Column(
+              children: [
+                DetailRow('Type', visitTypeLabel(f.type)),
+                if (urgent) ...[
+                  const SizedBox(height: 12),
+                  DetailRow(
+                    'Danger signs',
+                    [for (final c in f.signs) labels[c] ?? c].join(', '),
+                    valueColor: HbColors.red,
+                  ),
+                ],
+                if (f.temperature != null) ...[
+                  const SizedBox(height: 12),
+                  DetailRow('Temperature', '${f.temperature} °C'),
+                ],
+                const SizedBox(height: 12),
+                DetailRow('General condition', f.condition),
+              ],
+            ),
+          ),
+          if (symptoms.isNotEmpty) ...[
+            const SectionHeading('Symptoms / observations'),
+            HbCard(
+              child: Column(
+                children: [
+                  for (final s in symptoms) BulletLine(s, HbColors.brand),
+                ],
+              ),
+            ),
+          ],
+          if (f.notes.trim().isNotEmpty) ...[
+            const SectionHeading('Notes'),
+            HbCard(child: Text(f.notes.trim(), style: HbText.bodyMedium)),
+          ],
+          HbPill(
+            online
+                ? 'Online · it sends now'
+                : urgent
+                ? 'Offline · the alert can go by SMS'
+                : 'Offline · saved on this phone, sent later',
+            dot: online ? HbColors.brand : HbColors.amberMark,
+          ),
+          HbButton.primary(
+            busy ? 'Saving...' : 'Save visit',
+            onPressed: busy ? null : () => _submit(context, ref),
+          ),
+          HbButton.secondary(
+            'Edit',
+            onPressed: () => Navigator.of(context).pop(),
           ),
         ],
       ),

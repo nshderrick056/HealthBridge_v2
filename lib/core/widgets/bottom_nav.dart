@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Floating dark pill: Home, Patients, Record Visit (lime, in the middle), Alerts, Profile.
+/// Floating dark pill: Home, Patients, Record (lime, in the middle), Alerts, Profile.
 /// [current] is null on screens that sit under no tab (the record flow).
 class HbBottomNav extends StatelessWidget {
   const HbBottomNav({super.key, required this.current, required this.onTap});
@@ -13,7 +13,7 @@ class HbBottomNav extends StatelessWidget {
   static const _items = [
     (Icons.home_outlined, 'Home'),
     (Icons.people_outline, 'Patients'),
-    (Icons.add, 'Record Visit'),
+    (Icons.add, 'Record'),
     (Icons.warning_amber_rounded, 'Alerts'),
     (Icons.person_outline, 'Profile'),
   ];

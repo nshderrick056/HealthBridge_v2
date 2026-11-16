@@ -3,12 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../data/db.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
-import '../record/record_visit_screen.dart';
+import '../patients/patient_profile_screen.dart';
 import '../shell/app_shell.dart';
 import '../sync/sync_status_screen.dart';
 import '../view_models.dart';
+
+const _weekdays = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -22,261 +33,292 @@ class HomeScreen extends ConsumerWidget {
     final dispatches = ref.watch(allDispatchesProvider).value ?? const [];
     final views = buildPatientViews(patients, visits);
     final now = DateTime.now();
-    final today = visits
-        .where((v) => sameDay(v.recordedAt.toLocal(), now))
-        .toList();
-    final counts = syncCounts(patients, visits);
-    final smsSent = dispatches
+    final today =
+        visits.where((v) => sameDay(v.recordedAt.toLocal(), now)).toList()
+          ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
+    final visited = today.map((v) => v.patientId).toSet().length;
+    final due = views
         .where(
-          (d) =>
-              d.state == DispatchState.sentSms ||
-              d.state == DispatchState.confirmed,
+          (v) =>
+              v.status == StatusKind.followUp ||
+              v.status == StatusKind.attention,
         )
-        .length;
-    final recent = ([
-      ...visits,
-    ]..sort((a, b) => b.recordedAt.compareTo(a.recordedAt))).take(2).toList();
-    final name = session?.fullName ?? '';
-    final first = name.split(' ').first;
-    final greeting = now.hour < 12
-        ? 'Good morning'
-        : (now.hour < 18 ? 'Good afternoon' : 'Good evening');
+        .toList();
+    final urgent = today.where((v) => v.isUrgent).toList();
+    final pending = syncCounts(patients, visits).pending;
+    Patient? patientOf(String id) =>
+        patients.where((p) => p.id == id).firstOrNull;
+    void openPatient(String id) => Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PatientProfileScreen(patientId: id),
+      ),
+    );
 
     return PageBody(
       children: [
-        PageHeader(
-          title: first.isEmpty ? greeting : '$greeting, $first',
-          subtitle: 'Community Health Worker',
-          trailing: CircleAvatar(
-            radius: 20,
-            backgroundColor: HbColors.teal,
-            child: Text(
-              initials(name),
-              style: HbText.labelMedium.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-        Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: online ? HbColors.greenTint : HbColors.neutralTint,
-            borderRadius: BorderRadius.circular(12),
-            border: online ? Border.all(color: HbColors.green) : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: online ? HbColors.green : HbColors.textSecondary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    online ? 'Online' : 'Offline',
-                    style: HbText.labelMedium.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: online ? HbColors.green : HbColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                online
-                    ? 'Connection available'
-                    : 'Records are saved on this device',
-                style: HbText.bodySmall.copyWith(
-                  color: online ? HbColors.green : HbColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        HbButton.primary(
-          'Record new visit',
-          icon: Icons.add_circle_outline,
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const RecordVisitScreen()),
-          ),
+        ProfileHeader(
+          name: session?.fullName ?? '',
+          role: 'Community Health Worker',
         ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Today\u2019s summary', style: HbText.sectionBold),
-            const SizedBox(height: 7),
-            SummaryRow(
+            Text('Today', style: HbText.headingLarge),
+            const SizedBox(height: 4),
+            Text(
+              '${_weekdays[now.weekday - 1]} ${dayMonth(now)} · '
+              '$visited visited, ${due.length} due',
+              style: HbText.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SyncStatusScreen(),
+                  ),
+                ),
+                child: HbPill(
+                  _connection(online, pending),
+                  dot: online ? HbColors.brand : HbColors.amberMark,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (urgent.isNotEmpty)
+          _UrgentCard(
+            count: urgent.length,
+            name: patientOf(urgent.first.patientId)?.fullName ?? 'A patient',
+            state: dispatches
+                .where((d) => d.visitId == urgent.first.id)
+                .firstOrNull
+                ?.state,
+            onTap: () => ref.read(tabIndexProvider.notifier).state = 3,
+          ),
+        SectionHeading(
+          'Due today',
+          action: 'View all',
+          onAction: () => ref.read(tabIndexProvider.notifier).state = 1,
+        ),
+        if (due.isEmpty)
+          Text('Nobody is due for a visit.', style: HbText.bodySmall)
+        else
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: SummaryCard(
-                    icon: Icons.person_outline,
-                    tint: HbColors.greenTint,
-                    color: HbColors.green,
-                    value: today.map((v) => v.patientId).toSet().length,
-                    label: 'Patients visited',
+                for (final (i, v) in due.indexed) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  SizedBox(
+                    width: 264,
+                    child: _DueCard(
+                      view: v,
+                      onTap: () => openPatient(v.patient.id),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SummaryCard(
-                    icon: Icons.calendar_today_outlined,
-                    tint: HbColors.amberTint,
-                    color: HbColors.warning,
-                    value: views
-                        .where((v) => v.status == StatusKind.followUp)
-                        .length,
-                    label: 'Follow-ups due',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SummaryCard(
-                    icon: Icons.error_outline,
-                    tint: HbColors.redTint,
-                    color: HbColors.red,
-                    value: today.where((v) => v.isUrgent).length,
-                    label: 'Urgent cases',
-                  ),
-                ),
+                ],
               ],
             ),
-          ],
-        ),
-        HbCard(
-          padding: const EdgeInsets.all(13),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.smartphone,
-                    size: 19,
-                    color: HbColors.textPrimary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Sync status', style: HbText.sectionBold),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SyncStatusScreen(),
-                      ),
-                    ),
-                    child: Text(
-                      'View',
-                      style: HbText.labelSmall.copyWith(color: HbColors.teal),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _syncMessage(
-                      '${counts.pending}',
-                      'records waiting to sync',
-                      HbColors.warning,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _syncMessage(
-                      '$smsSent',
-                      'urgent alert${smsSent == 1 ? '' : 's'} sent by SMS',
-                      HbColors.green,
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ),
-        ),
-        Column(
-          children: [
-            SectionHeading(
-              'Recent patients',
-              bold: true,
-              action: 'See all',
-              onAction: () => ref.read(tabIndexProvider.notifier).state = 1,
+        const SectionHeading('Visited today'),
+        if (today.isEmpty)
+          Text('No visits recorded yet.', style: HbText.bodySmall)
+        else
+          HbCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                for (final (i, visit) in today.indexed) ...[
+                  if (i > 0)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 18),
+                      child: HbDivider(),
+                    ),
+                  _VisitRow(
+                    visit: visit,
+                    patient: patientOf(visit.patientId),
+                    onTap: () => openPatient(visit.patientId),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: 2),
-            if (recent.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text('No visits recorded yet.', style: HbText.bodySmall),
-              ),
-            for (final v in recent) _recentRow(patients, v),
-          ],
-        ),
+          ),
       ],
     );
   }
 
-  Widget _syncMessage(String value, String label, Color color) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        value,
-        style: HbText.headingSmall.copyWith(
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
-      ),
-      const SizedBox(height: 2),
-      Text(label, style: HbText.bodySmall.copyWith(fontSize: 11, height: 1.3)),
-    ],
-  );
+  static String _connection(bool online, int pending) {
+    final waiting = pending == 1 ? '1 visit' : '$pending visits';
+    if (online) {
+      return pending == 0 ? 'Online · all sent' : 'Online · sending $waiting';
+    }
+    return pending == 0
+        ? 'Offline · nothing waiting'
+        : 'Offline · $waiting not sent yet';
+  }
+}
 
-  Widget _recentRow(List patients, visit) {
-    final p = patients.firstWhere((p) => p.id == visit.patientId);
-    return SizedBox(
-      height: 56,
+class _UrgentCard extends StatelessWidget {
+  const _UrgentCard({
+    required this.count,
+    required this.name,
+    required this.state,
+    required this.onTap,
+  });
+
+  final int count;
+  final String name;
+  final DispatchState? state;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final alert = switch (state) {
+      DispatchState.confirmed => 'the health centre has the alert',
+      DispatchState.sentSms ||
+      DispatchState.unconfirmed => 'alert sent by SMS, not confirmed yet',
+      DispatchState.sending => 'alert is sending',
+      null => 'alert not sent yet',
+    };
+    return HbCard(
+      color: HbColors.red,
+      shadow: false,
+      onTap: onTap,
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 19,
-            backgroundColor: HbColors.tealTint,
-            child: Text(
-              initials(p.fullName),
-              style: HbText.labelSmall.copyWith(
-                color: HbColors.teal,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(p.fullName, style: HbText.labelMedium),
+                Text(
+                  count == 1
+                      ? '1 urgent case today'
+                      : '$count urgent cases today',
+                  style: HbText.headingSmall.copyWith(color: Colors.white),
+                ),
                 const SizedBox(height: 2),
                 Text(
-                  '${visitTypeLabel(visit.type)} \u00B7 ${p.village}',
-                  style: HbText.bodySmall,
+                  '$name · $alert',
+                  style: HbText.bodySmall.copyWith(color: HbColors.onRed),
                 ),
               ],
             ),
           ),
+          const Icon(Icons.chevron_right, color: Colors.white),
+        ],
+      ),
+    );
+  }
+}
+
+class _DueCard extends StatelessWidget {
+  const _DueCard({required this.view, required this.onTap});
+
+  final PatientView view;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = view.latest;
+    final reason = view.status == StatusKind.attention
+        ? 'Needs attention'
+        : latest == null
+        ? 'Follow-up'
+        : '${visitTypeLabel(latest.type)} follow-up';
+    return HbGradientCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            sameDay(visit.recordedAt.toLocal(), DateTime.now())
-                ? clock(visit.recordedAt.toLocal())
-                : relativeDay(visit.recordedAt.toLocal()),
-            style: HbText.bodySmall,
+            reason,
+            style: HbText.labelMedium.copyWith(
+              color: HbColors.lime,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            view.patient.fullName,
+            style: HbText.headingLarge.copyWith(
+              color: Colors.white,
+              fontSize: 24,
+            ),
+          ),
+          Text(
+            [
+              if (view.ageSex.isNotEmpty) view.ageSex,
+              view.patient.village,
+            ].join(' · '),
+            style: HbText.bodySmall.copyWith(color: HbColors.onBrand),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              HbAvatar(view.patient.fullName, kind: AvatarKind.lime, size: 36),
+              const SizedBox(width: 10),
+              Text(
+                'Due ${view.status == StatusKind.attention ? 'now' : 'today'}',
+                style: HbText.bodyMedium.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _VisitRow extends StatelessWidget {
+  const _VisitRow({
+    required this.visit,
+    required this.patient,
+    required this.onTap,
+  });
+
+  final Visit visit;
+  final Patient? patient;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = patient?.fullName ?? 'Unknown patient';
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
+        child: Row(
+          children: [
+            HbAvatar(
+              name,
+              kind: visit.isUrgent ? AvatarKind.urgent : AvatarKind.plain,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: HbText.headingSmall),
+                  Text(
+                    [visitTypeLabel(visit.type), ?patient?.village].join(' · '),
+                    style: HbText.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(clock(visit.recordedAt.toLocal()), style: HbText.bodySmall),
+            const Icon(Icons.chevron_right, color: HbColors.chevron),
+          ],
+        ),
       ),
     );
   }

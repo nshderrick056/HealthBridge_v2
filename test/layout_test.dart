@@ -126,7 +126,7 @@ void main() {
         await tester.pumpWidget(app(const AppShell()));
         await settle(tester);
         expect(tester.takeException(), isNull, reason: 'Home');
-        for (final tab in ['Patients', 'Record Visit', 'Alerts', 'Profile']) {
+        for (final tab in ['Patients', 'Record', 'Alerts', 'Profile']) {
           await tester.tap(find.text(tab).last);
           await settle(tester);
           expect(tester.takeException(), isNull, reason: tab);

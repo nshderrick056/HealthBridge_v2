@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/settings/settings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
-import '../patients/patients_screen.dart';
 import 'forgot_screen.dart';
 import 'login_controller.dart';
 
@@ -62,211 +61,213 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         HbTextField(
           label: 'Phone number',
           hint: 'e.g. 0788 123 456',
-          icon: Icons.phone_outlined,
           controller: _id,
           keyboardType: TextInputType.phone,
           validator: validatePhone,
+          labelColor: Colors.white,
         ),
         HbTextField(
           label: 'PIN',
           hint: '4 to 6 digits',
-          icon: Icons.lock_outline,
           controller: _secret,
           obscure: true,
           keyboardType: TextInputType.number,
           validator: validatePin,
+          labelColor: Colors.white,
         ),
-        'Log in',
-        'Logging in...',
+        'Sign in',
+        'Signing in...',
       ),
       LoginMethod.email => (
         HbTextField(
           label: 'Email',
           hint: 'you@example.org',
-          icon: Icons.mail_outline,
           controller: _id,
           keyboardType: TextInputType.emailAddress,
           validator: validateEmail,
+          labelColor: Colors.white,
         ),
         HbTextField(
           label: 'Password',
           hint: 'Enter your password',
-          icon: Icons.lock_outline,
           controller: _secret,
           obscure: true,
           validator: validatePassword,
+          labelColor: Colors.white,
         ),
-        'Log in',
-        'Logging in...',
+        'Sign in',
+        'Signing in...',
       ),
       LoginMethod.smsCode => (
         HbTextField(
           label: 'Phone number',
           hint: 'e.g. 0788 123 456',
-          icon: Icons.phone_outlined,
           controller: _id,
           keyboardType: TextInputType.phone,
           validator: validatePhone,
+          labelColor: Colors.white,
         ),
         login.awaitingCode
             ? HbTextField(
                 label: 'Code from the SMS',
                 hint: '6 digits',
-                icon: Icons.sms_outlined,
                 controller: _secret,
                 keyboardType: TextInputType.number,
                 validator: validateCode,
+                labelColor: Colors.white,
               )
             : null,
-        login.awaitingCode ? 'Log in' : 'Send code',
-        login.awaitingCode ? 'Logging in...' : 'Sending...',
+        login.awaitingCode ? 'Sign in' : 'Send code',
+        login.awaitingCode ? 'Signing in...' : 'Sending...',
       ),
     };
     return [
       idField,
-      if (secretField != null) ...[const SizedBox(height: 16), secretField],
+      if (secretField != null) ...[const SizedBox(height: 18), secretField],
       if (login.error != null) ...[
         const SizedBox(height: 12),
         Text(
           login.error!,
-          style: HbText.bodySmall.copyWith(color: HbColors.red),
+          style: HbText.bodyMedium.copyWith(
+            color: _errorOnGreen,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
-      const SizedBox(height: 22),
-      HbButton.primary(
+      const SizedBox(height: 24),
+      HbButton.light(
         busy ? busyLabel : action,
         onPressed: busy ? null : () => _submit(login),
       ),
+      const SizedBox(height: 4),
       if (login.awaitingCode)
-        TextButton(
-          onPressed: busy ? null : _controller.changeNumber,
-          child: const Text('Change number or send a new code'),
+        _Link(
+          'Change number or send a new code',
+          onTap: busy ? null : _controller.changeNumber,
         ),
-      TextButton(
-        onPressed: () => Navigator.of(
+      _Link(
+        'Forgot PIN or password?',
+        onTap: () => Navigator.of(
           context,
         ).push(MaterialPageRoute<void>(builder: (_) => const ForgotScreen())),
-        child: const Text('Forgot PIN or password?'),
       ),
     ];
   }
 
+  /// Light red that stays readable on the green (about 7:1).
+  static const _errorOnGreen = Color(0xFFFFD7D2);
+
   Widget _layout(LoginState login) => Scaffold(
-    body: SafeArea(
-      child: Column(
-        children: [
-          Container(
-            height: 176,
-            width: double.infinity,
-            color: HbColors.tealTint,
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-            alignment: Alignment.topLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+    body: DecoratedBox(
+      decoration: const BoxDecoration(gradient: HbGradients.deep),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 40, 24, 28),
+          child: Form(
+            key: _form,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: HbColors.teal,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.medical_services_outlined,
-                    size: 28,
-                    color: Colors.white,
-                  ),
+                Text(
+                  'HealthBridge',
+                  style: HbText.headingMedium.copyWith(color: HbColors.lime),
                 ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 36),
+                Text(
+                  'Sign in',
+                  style: HbText.display.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Use the phone number your supervisor registered.',
+                  style: HbText.bodyMedium.copyWith(color: HbColors.onBrand),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
                   children: [
-                    Text(
-                      'HealthBridge',
-                      style: HbText.headingLarge.copyWith(fontSize: 21),
-                    ),
-                    Text(
-                      'RWANDA',
-                      style: HbText.labelSmall.copyWith(color: HbColors.teal),
-                    ),
+                    for (final (m, label) in const [
+                      (LoginMethod.pin, 'PIN'),
+                      (LoginMethod.smsCode, 'SMS code'),
+                      (LoginMethod.email, 'Email'),
+                    ])
+                      _MethodChip(
+                        label,
+                        selected: login.method == m,
+                        onTap: () => _choose(m),
+                      ),
                   ],
+                ),
+                const SizedBox(height: 20),
+                ..._fields(login),
+                const SizedBox(height: 32),
+                Text(
+                  'Your visits are kept on this phone and sent when you have signal.',
+                  style: HbText.bodySmall.copyWith(color: HbColors.onBrand),
                 ),
               ],
             ),
           ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 22),
-              child: Form(
-                key: _form,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back',
-                      style: HbText.headingLarge.copyWith(
-                        fontSize: 30,
-                        height: 1.15,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Log in to continue your community health work.',
-                      style: HbText.bodyMedium.copyWith(
-                        color: HbColors.textSecondary,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final (m, label) in const [
-                          (LoginMethod.pin, 'PIN'),
-                          (LoginMethod.smsCode, 'SMS code'),
-                          (LoginMethod.email, 'Email'),
-                        ])
-                          ChoiceChipPill(
-                            label: label,
-                            selected: login.method == m,
-                            onTap: () => _choose(m),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    ..._fields(login),
-                    const SizedBox(height: 60),
-                    HbCard(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        children: [
-                          Text('Language', style: HbText.bodySmall),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'English',
-                              textAlign: TextAlign.right,
-                              style: HbText.labelMedium,
-                            ),
-                          ),
-                          const Icon(
-                            Icons.keyboard_arrow_down,
-                            size: 16,
-                            color: HbColors.textSecondary,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// White pill for the chosen method, plain text for the others: a segmented control on green.
+class _MethodChip extends StatelessWidget {
+  const _MethodChip(this.label, {required this.selected, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    button: true,
+    child: Material(
+      color: selected ? Colors.white : Colors.transparent,
+      shape: const StadiumBorder(),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          child: Text(
+            label,
+            style: HbText.bodyMedium.copyWith(
+              color: selected ? HbColors.ink : HbColors.onBrand,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
-        ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _Link extends StatelessWidget {
+  const _Link(this.label, {required this.onTap});
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(8),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Text(
+        label,
+        style: HbText.bodyMedium.copyWith(
+          color: HbColors.lime,
+          fontWeight: FontWeight.w500,
+          decoration: TextDecoration.underline,
+          decorationColor: HbColors.lime,
+        ),
       ),
     ),
   );

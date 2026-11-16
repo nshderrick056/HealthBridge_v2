@@ -70,7 +70,6 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
   Widget build(BuildContext context) {
     final patients = ref.watch(allPatientsProvider).value ?? const [];
     final visits = ref.watch(allVisitsProvider).value ?? const <Visit>[];
-    final online = ref.watch(isOnlineProvider);
     final state = ref.watch(recordVisitProvider(widget.patientId));
     final id = state.patientId;
     if (id != null && state.form == null) {
@@ -84,8 +83,8 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
     return Scaffold(
       bottomNavigationBar: const SubPageNav(current: 2),
       body: form == null
-          ? _picker(patients, visits, online)
-          : _formBody(form, state.signs, visits, online),
+          ? _picker(patients, visits)
+          : _formBody(form, state.signs, visits),
     );
   }
 
@@ -93,125 +92,122 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
   PatientView _view(Patient p, List<Visit> visits) =>
       PatientView(p, visits.where((v) => v.patientId == p.id).toList());
 
-  Widget _picker(List<Patient> patients, List<Visit> visits, bool online) =>
-      PageBody(
+  Widget _picker(List<Patient> patients, List<Visit> visits) {
+    final views = [for (final p in patients) _view(p, visits)];
+    bool isDue(PatientView v) =>
+        v.status == StatusKind.followUp || v.status == StatusKind.attention;
+    final due = views.where(isDue).toList();
+    final others = views.where((v) => !isDue(v)).toList();
+    Widget card(List<PatientView> list) => HbCard(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
         children: [
-          PageHeader(
-            title: 'Record visit',
-            subtitle: 'Choose the patient',
-            trailing: StatusChip(
-              online ? StatusKind.online : StatusKind.offline,
-            ),
-          ),
-          if (patients.isEmpty)
-            Text('Register a patient first.', style: HbText.bodySmall),
-          for (final p in patients)
-            PatientCard(
-              name: p.fullName,
-              detail: p.shortId,
-              status: _view(p, visits).status,
-              village: p.village,
-              when: 'Select',
-              onTap: () => _open(p),
-            ),
+          for (final (i, v) in list.indexed) ...[
+            if (i > 0)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 18),
+                child: HbDivider(),
+              ),
+            PatientRow(view: v, onTap: () => _open(v.patient)),
+          ],
         ],
-      );
+      ),
+    );
+    return PageBody(
+      children: [
+        const HbStepBar(step: 'Step 1 / 3'),
+        Text('Who is this visit for?', style: HbText.headingLarge),
+        if (patients.isEmpty)
+          Text('Register a patient first.', style: HbText.bodySmall),
+        if (due.isNotEmpty) ...[const SectionHeading('Due today'), card(due)],
+        if (others.isNotEmpty) ...[
+          SectionHeading(due.isEmpty ? 'Your patients' : 'Everyone else'),
+          card(others),
+        ],
+      ],
+    );
+  }
 
-  Widget _formBody(
-    VisitForm f,
-    List<DangerSign> signs,
-    List<Visit> visits,
-    bool online,
-  ) {
+  Widget _formBody(VisitForm f, List<DangerSign> signs, List<Visit> visits) {
     final view = _view(f.patient, visits);
     return Form(
       key: _key,
       onChanged: _save,
       child: PageBody(
         children: [
-          PageHeader(
-            title: 'Record visit',
-            subtitle: 'Add a field visit',
-            trailing: StatusChip(
-              online ? StatusKind.online : StatusKind.offline,
-            ),
-          ),
-          PatientCard(
-            name: f.patient.fullName,
-            detail: view.ageSex.isEmpty ? f.patient.shortId : view.ageSex,
-            status: view.status,
-            village: f.patient.village,
-            when: 'Selected',
-          ),
+          const HbStepBar(step: 'Step 2 / 3'),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionHeading('Visit type'),
-              const SizedBox(height: 7),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
+              Text('Record visit', style: HbText.headingLarge),
+              const SizedBox(height: 4),
+              Text(
+                [
+                  f.patient.fullName,
+                  if (view.ageSex.isNotEmpty) view.ageSex,
+                  'today',
+                ].join(' · '),
+                style: HbText.bodySmall,
+              ),
+            ],
+          ),
+          const SectionHeading('Visit type'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final t in VisitType.values)
+                HbChoice(
+                  visitTypeLabel(t),
+                  selected: f.type == t,
+                  onTap: () {
+                    _controller.setType(t);
+                    _save();
+                  },
+                ),
+            ],
+          ),
+          if (signs.isNotEmpty) ...[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionHeading('Danger signs'),
+                Text(
+                  'Tick any you see. Any danger sign makes this visit urgent.',
+                  style: HbText.bodySmall,
+                ),
+              ],
+            ),
+            HbCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
                 children: [
-                  for (final t in VisitType.values)
-                    ChoiceChipPill(
-                      label: visitTypeLabel(t),
-                      selected: f.type == t,
-                      onTap: () {
-                        _controller.setType(t);
+                  for (final (i, s) in signs.indexed) ...[
+                    if (i > 0)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 18),
+                        child: HbDivider(),
+                      ),
+                    _SignRow(
+                      label: s.labelEn,
+                      ticked: f.signs.contains(s.code),
+                      onChanged: (v) {
+                        _controller.setSign(s.code, v);
                         _save();
                       },
                     ),
+                  ],
                 ],
               ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Visit date', style: HbText.labelMedium),
-              const SizedBox(height: 7),
-              HbCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 19,
-                      color: HbColors.textSecondary,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      '${fullDate(DateTime.now())} (today)',
-                      style: HbText.bodyMedium.copyWith(
-                        color: HbColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          HbTextField(
-            label: 'Symptoms / observations',
-            hint: 'What did you observe?',
-            controller: _symptoms,
-            maxLines: 3,
-          ),
+            ),
+          ],
+          const SectionHeading('Measurements'),
           HbCard(
-            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Basic measurements / assessment',
-                  style: HbText.labelMedium,
-                ),
-                const SizedBox(height: 7),
                 HbTextField(
-                  label: 'Temperature (\u00B0C)',
+                  label: 'Temperature (°C)',
                   hint: 'e.g. 37.2',
                   controller: _temperature,
                   keyboardType: const TextInputType.numberWithOptions(
@@ -221,15 +217,21 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
                       ? null
                       : temperatureC.check(double.tryParse(v.trim())),
                 ),
-                const SizedBox(height: 10),
-                Text('General condition', style: HbText.labelMedium),
-                const SizedBox(height: 7),
+                const SizedBox(height: 16),
+                Text(
+                  'General condition',
+                  style: HbText.labelMedium.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Wrap(
-                  spacing: 7,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     for (final c in const ['Stable', needsAttention])
-                      ChoiceChipPill(
-                        label: c,
+                      HbChoice(
+                        c,
                         selected: f.condition == c,
                         onTap: () {
                           _controller.setCondition(c);
@@ -241,50 +243,81 @@ class _RecordVisitScreenState extends ConsumerState<RecordVisitScreen> {
               ],
             ),
           ),
-          if (signs.isNotEmpty)
-            HbCard(
-              color: f.signs.isEmpty ? HbColors.white : HbColors.redTint,
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Danger signs', style: HbText.labelMedium),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Tick any that apply. Any danger sign makes this visit urgent.',
-                    style: HbText.bodySmall,
-                  ),
-                  for (final s in signs)
-                    Material(
-                      type: MaterialType.transparency,
-                      child: CheckboxListTile(
-                        dense: false,
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: Text(s.labelEn, style: HbText.bodyMedium),
-                        value: f.signs.contains(s.code),
-                        onChanged: (v) {
-                          _controller.setSign(s.code, v == true);
-                          _save();
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          HbTextField(
+            label: 'Symptoms / observations',
+            hint: 'What did you observe?',
+            controller: _symptoms,
+            maxLines: 3,
+          ),
           HbTextField(
             label: 'Notes',
             hint: 'Anything else to record',
             controller: _notes,
             maxLines: 3,
           ),
-          HbButton.primary(
-            'Review visit',
-            icon: Icons.add_circle_outline,
-            onPressed: () => _review(f),
-          ),
+          if (f.signs.isNotEmpty)
+            Text(
+              f.signs.length == 1
+                  ? '1 danger sign ticked: this visit is urgent.'
+                  : '${f.signs.length} danger signs ticked: this visit is urgent.',
+              style: HbText.labelMedium.copyWith(color: HbColors.red),
+            ),
+          HbButton.primary('Review visit', onPressed: () => _review(f)),
         ],
       ),
     );
   }
+}
+
+/// A danger sign the CHW can tick; ticked signs turn red.
+class _SignRow extends StatelessWidget {
+  const _SignRow({
+    required this.label,
+    required this.ticked,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool ticked;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    checked: ticked,
+    child: InkWell(
+      onTap: () => onChanged(!ticked),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: ticked ? HbColors.red : HbColors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: ticked
+                    ? null
+                    : Border.all(color: HbColors.edge, width: 2),
+              ),
+              child: ticked
+                  ? const Icon(Icons.check, size: 18, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: HbText.bodyMedium.copyWith(
+                  fontSize: 17,
+                  color: ticked ? HbColors.red : HbColors.ink,
+                  fontWeight: ticked ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

@@ -22,118 +22,75 @@ class SyncStatusScreen extends ConsumerWidget {
     final recent = ([
       ...visits,
     ]..sort((a, b) => b.recordedAt.compareTo(a.recordedAt))).take(8).toList();
+    String n(int c) => c == 1 ? '1 record' : '$c records';
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: HbColors.surface,
-        elevation: 0,
-        foregroundColor: HbColors.textPrimary,
-        toolbarHeight: 44,
-      ),
       bottomNavigationBar: const SubPageNav(current: 0),
       body: PageBody(
         children: [
-          const PageHeader(
-            title: 'Sync status',
-            subtitle: 'Record transmission at a glance',
+          const HbStepBar(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Sync', style: HbText.headingLarge),
+              const SizedBox(height: 4),
+              Text(
+                online
+                    ? 'Online · waiting records send by themselves'
+                    : 'Offline · records send when the internet returns',
+                style: HbText.bodySmall,
+              ),
+            ],
           ),
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: online ? HbColors.greenTint : HbColors.neutralTint,
-              borderRadius: BorderRadius.circular(12),
-              border: online ? Border.all(color: HbColors.green) : null,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          HbCard(
+            child: Column(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: online ? HbColors.green : HbColors.textSecondary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      online ? 'Online' : 'Offline',
-                      style: HbText.labelMedium.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: online ? HbColors.green : HbColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                DetailRow('Sent', n(counts.synced)),
+                const SizedBox(height: 12),
+                DetailRow(
+                  'Waiting',
+                  n(counts.pending),
+                  valueColor: counts.pending > 0 ? HbColors.warning : null,
                 ),
-                Flexible(
-                  child: Text(
-                    online
-                        ? 'Pending records are syncing automatically'
-                        : 'Records sync when internet returns',
-                    overflow: TextOverflow.ellipsis,
-                    style: HbText.bodySmall.copyWith(
-                      color: online ? HbColors.green : HbColors.textSecondary,
-                    ),
-                  ),
+                const SizedBox(height: 12),
+                DetailRow(
+                  'Failed',
+                  n(counts.failed),
+                  valueColor: counts.failed > 0 ? HbColors.red : null,
                 ),
               ],
             ),
           ),
-          SummaryRow(
-            children: [
-              Expanded(
-                child: SummaryCard(
-                  icon: Icons.person_outline,
-                  tint: HbColors.greenTint,
-                  color: HbColors.green,
-                  value: counts.synced,
-                  label: 'Synced',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SummaryCard(
-                  icon: Icons.calendar_today_outlined,
-                  tint: HbColors.amberTint,
-                  color: HbColors.warning,
-                  value: counts.pending,
-                  label: 'Pending',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SummaryCard(
-                  icon: Icons.error_outline,
-                  tint: HbColors.redTint,
-                  color: HbColors.red,
-                  value: counts.failed,
-                  label: 'Failed',
-                ),
-              ),
-            ],
+          HbButton.secondary(
+            'Send now',
+            icon: Icons.sync,
+            onPressed: online ? () => ref.read(syncNowProvider)() : null,
           ),
-          Column(
-            children: [
-              const SectionHeading('Recent records', bold: true),
-              if (recent.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Text('Nothing recorded yet.', style: HbText.bodySmall),
-                ),
-              for (final v in recent)
-                _row(
-                  ref,
-                  v,
-                  patients.where((p) => p.id == v.patientId).firstOrNull,
-                ),
-            ],
-          ),
+          const SectionHeading('Recent records'),
+          if (recent.isEmpty)
+            Text('Nothing recorded yet.', style: HbText.bodySmall)
+          else
+            HbCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                children: [
+                  for (final (i, v) in recent.indexed) ...[
+                    if (i > 0)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 18),
+                        child: HbDivider(),
+                      ),
+                    _row(
+                      ref,
+                      v,
+                      patients.where((p) => p.id == v.patientId).firstOrNull,
+                    ),
+                  ],
+                ],
+              ),
+            ),
           Text(
-            'Records stay safely on this device until transmission is complete.',
-            textAlign: TextAlign.center,
+            'Records stay safely on this phone until the server has them.',
             style: HbText.bodySmall,
           ),
         ],
@@ -143,68 +100,61 @@ class SyncStatusScreen extends ConsumerWidget {
 
   Widget _row(WidgetRef ref, Visit v, Patient? p) {
     final failed = v.syncState == SyncState.failed;
-    final (kind, label) = switch (v.syncState) {
-      SyncState.synced => (StatusKind.synced, null),
-      SyncState.failed => (StatusKind.failed, null),
-      _ => (StatusKind.pending, null),
-    };
     final at = v.recordedAt.toLocal();
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: HbColors.divider)),
-      ),
+    final name = p?.fullName ?? 'Unknown patient';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 19,
-            backgroundColor: failed ? HbColors.redTint : HbColors.tealTint,
-            child: Text(
-              failed ? '!' : '\u21BB',
-              style: HbText.labelMedium.copyWith(
-                fontWeight: FontWeight.w700,
-                color: failed ? HbColors.red : HbColors.teal,
-              ),
-            ),
+          HbAvatar(
+            name,
+            kind: failed || v.isUrgent ? AvatarKind.urgent : AvatarKind.plain,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(name, style: HbText.headingSmall),
                 Text(
-                  p?.fullName ?? 'Unknown patient',
-                  style: HbText.labelMedium,
-                ),
-                const SizedBox(height: 3),
-                Text(visitTypeLabel(v.type), style: HbText.bodySmall),
-                const SizedBox(height: 3),
-                Text(
-                  '${relativeDay(at)} \u00B7 ${clock(at)}',
-                  style: HbText.bodySmall.copyWith(fontSize: 11),
+                  '${visitTypeLabel(v.type)} · ${relativeDay(at)} ${clock(at)}',
+                  style: HbText.bodySmall,
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              StatusChip(kind, label: label),
-              if (failed) ...[
-                const SizedBox(height: 5),
-                GestureDetector(
-                  onTap: () async {
-                    await ref.read(visitsRepositoryProvider).retry(v.id);
-                    await ref.read(syncNowProvider)();
-                  },
-                  child: Text(
-                    'Retry',
-                    style: HbText.labelSmall.copyWith(color: HbColors.teal),
+          const SizedBox(width: 8),
+          if (failed)
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () async {
+                await ref.read(visitsRepositoryProvider).retry(v.id);
+                await ref.read(syncNowProvider)();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
+                child: Text(
+                  'Retry',
+                  style: HbText.labelMedium.copyWith(
+                    color: HbColors.red,
+                    decoration: TextDecoration.underline,
+                    decorationColor: HbColors.red,
                   ),
                 ),
-              ],
-            ],
-          ),
+              ),
+            )
+          else
+            Text(
+              v.syncState == SyncState.synced ? 'Sent' : 'Waiting',
+              style: HbText.labelMedium.copyWith(
+                color: v.syncState == SyncState.synced
+                    ? HbColors.brand
+                    : HbColors.muted,
+              ),
+            ),
         ],
       ),
     );

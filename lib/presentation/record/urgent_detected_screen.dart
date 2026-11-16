@@ -24,107 +24,115 @@ class UrgentDetectedScreen extends ConsumerWidget {
         ref.watch(dangerSignLabelsProvider).value ?? const <String, String>{};
     final online = ref.watch(isOnlineProvider);
     if (detail == null) return const Scaffold(body: SizedBox.shrink());
-    final view = PatientView(detail.patient, const []);
 
     return Scaffold(
       bottomNavigationBar: const SubPageNav(current: null),
       body: PageBody(
         children: [
-          const PageHeader(
-            title: 'Urgent case detected',
-            subtitle: 'Immediate attention required',
-          ),
-          const NoticeCard(
-            color: HbColors.red,
-            tint: HbColors.redTint,
-            glyph: '!',
-            title: 'This case requires immediate attention',
-            body: 'Review the warning indicators and send an alert now.',
-          ),
           HbCard(
+            color: HbColors.red,
+            shadow: false,
+            padding: const EdgeInsets.all(22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Case summary', style: HbText.labelMedium),
-                const SizedBox(height: 8),
-                Text(detail.patient.fullName, style: HbText.headingLarge),
+                Text(
+                  '${detail.patient.fullName} needs the health centre today',
+                  style: HbText.headingLarge.copyWith(color: Colors.white),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   [
-                    if (view.ageSex.isNotEmpty) view.ageSex,
+                    '${visitTypeLabel(detail.visit.type)} warning signs',
                     detail.patient.village,
                     detail.patient.shortId,
-                  ].join(' \u00B7 '),
-                  style: HbText.bodySmall,
-                ),
-                const SizedBox(height: 8),
-                DetailRow(
-                  'Urgent case type',
-                  '${visitTypeLabel(detail.visit.type)} warning signs',
+                  ].join(' · '),
+                  style: HbText.bodySmall.copyWith(color: HbColors.onRed),
                 ),
               ],
             ),
           ),
+          const SectionHeading('Danger signs you recorded'),
           HbCard(
-            color: HbColors.redTint,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Key warning indicators', style: HbText.labelMedium),
-                const SizedBox(height: 8),
                 for (final c in detail.signs)
                   BulletLine(labels[c] ?? c, HbColors.red),
               ],
             ),
           ),
-          HbCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Connectivity status', style: HbText.labelMedium),
-                    StatusChip(online ? StatusKind.online : StatusKind.offline),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'HealthBridge will attempt to send the alert immediately. If internet is unavailable, SMS fallback will be used.',
-                  style: HbText.bodySmall,
-                ),
-              ],
-            ),
+          const SectionHeading('What happens next'),
+          const HbCard(
+            child: _Steps([
+              'Send the alert below. It goes over the internet, or by SMS if there is none.',
+              'Help the patient get to the health centre.',
+              'A nurse may call you back. Keep your phone on.',
+            ]),
           ),
-          Column(
-            children: [
-              HbButton.primary(
-                'Send urgent alert',
-                icon: Icons.add_circle_outline,
-                // Internet first, SMS fallback (lib/urgent/); the next screen follows its progress.
-                onPressed: () {
-                  unawaited(ref.read(urgentDispatcherProvider).send(visitId));
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute<void>(
-                      builder: (_) => SmsAlertSentScreen(visitId: visitId),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              HbButton.secondary(
-                'Review details',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        PatientProfileScreen(patientId: detail.patient.id),
-                  ),
+          HbPill(
+            online
+                ? 'Online · the alert goes over the internet'
+                : 'Offline · the alert will go by SMS',
+            dot: online ? HbColors.brand : HbColors.amberMark,
+          ),
+          HbButton.danger(
+            'Send urgent alert',
+            icon: Icons.send_outlined,
+            // Internet first, SMS fallback (lib/urgent/); the next screen follows its progress.
+            onPressed: () {
+              unawaited(ref.read(urgentDispatcherProvider).send(visitId));
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute<void>(
+                  builder: (_) => SmsAlertSentScreen(visitId: visitId),
                 ),
+              );
+            },
+          ),
+          HbButton.secondary(
+            'Review details',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    PatientProfileScreen(patientId: detail.patient.id),
               ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Numbered steps in lime circles.
+class _Steps extends StatelessWidget {
+  const _Steps(this.steps);
+
+  final List<String> steps;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (final (i, s) in steps.indexed)
+        Padding(
+          padding: EdgeInsets.only(top: i == 0 ? 0 : 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: HbColors.lime,
+                  shape: BoxShape.circle,
+                ),
+                child: Text('${i + 1}', style: HbText.labelMedium),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(s, style: HbText.bodyMedium)),
+            ],
+          ),
+        ),
+    ],
+  );
 }

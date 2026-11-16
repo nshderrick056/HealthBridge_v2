@@ -133,31 +133,23 @@ void main() {
     phoneScreen(tester);
     await tester.pumpWidget(_app(db, const LoginScreen()));
 
-    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('Sign in'), findsNWidgets(2)); // the title and the button
     expect(find.text('Phone number'), findsOneWidget);
     expect(find.text('PIN'), findsWidgets);
-    await tester.tap(find.text('Log in'));
+    await tester.tap(find.text('Sign in').last);
     await tester.pump();
     expect(find.text('Required'), findsNWidgets(2));
     await finish(tester);
   });
 
-  testWidgets('home shows the greeting, summary cards and the five-tab bar', (
-    tester,
-  ) async {
+  testWidgets('home shows the CHW, today and the five-tab bar', (tester) async {
     await pumpShell(tester);
 
     expect(find.textContaining('Claudine'), findsOneWidget);
-    expect(find.text('Record new visit'), findsOneWidget);
-    expect(find.text('Patients visited'), findsOneWidget);
+    expect(find.text('Today'), findsOneWidget);
+    expect(find.textContaining('0 visited, 0 due'), findsOneWidget);
     expect(find.text('No visits recorded yet.'), findsOneWidget);
-    for (final tab in [
-      'Home',
-      'Patients',
-      'Record Visit',
-      'Alerts',
-      'Profile',
-    ]) {
+    for (final tab in ['Home', 'Patients', 'Record', 'Alerts', 'Profile']) {
       expect(find.text(tab), findsWidgets);
     }
     await finish(tester);
@@ -211,7 +203,7 @@ void main() {
             ),
           );
       await pumpShell(tester);
-      await tester.tap(find.text('Record new visit'));
+      await tester.tap(find.text('Record').last);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Uwase Marie'));
@@ -232,20 +224,25 @@ void main() {
       );
       await tester.tap(find.text('Review visit'));
       await tester.pumpAndSettle();
-      expect(find.text('Check details before submitting'), findsOneWidget);
+      expect(find.text('Check and save'), findsOneWidget);
+      expect(find.text('This visit is urgent'), findsOneWidget);
 
       await tester.scrollUntilVisible(
-        find.text('Submit visit'),
+        find.text('Save visit'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.text('Submit visit'));
+      await tester.tap(find.text('Save visit'));
       await settle(tester);
       await settle(
         tester,
       ); // the next screen loads the visit with a second real-time query
 
-      expect(find.text('Urgent case detected'), findsOneWidget);
+      expect(find.text('Send urgent alert'), findsOneWidget);
+      expect(
+        find.text('Uwase Marie needs the health centre today'),
+        findsOneWidget,
+      );
       expect(find.text('Heavy bleeding'), findsOneWidget);
       final visits = (await tester.runAsync(() => db.select(db.visits).get()))!;
       expect(visits.single.isUrgent, isTrue);

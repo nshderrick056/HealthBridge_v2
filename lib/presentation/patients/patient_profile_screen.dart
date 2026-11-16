@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
+import '../../data/db.dart';
 import '../../data/providers.dart';
 import '../record/record_visit_screen.dart';
 import '../shell/app_shell.dart';
 import '../view_models.dart';
-import '../../data/db.dart';
 import 'patient_profile_controller.dart';
 import 'register_patient_screen.dart';
 
@@ -79,184 +79,164 @@ class PatientProfileScreen extends ConsumerWidget {
       visits.where((v) => v.patientId == patientId).toList(),
     );
     final latest = view.latest;
-    final previous = view.visits.skip(1).take(showAll ? 50 : 2).toList();
+    final shown = view.visits.take(showAll ? 50 : 3).toList();
     final due = latest?.followUpOn;
+    final first = view.patient.fullName.trim().split(RegExp(r'\s+')).first;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: HbColors.surface,
-        elevation: 0,
-        foregroundColor: HbColors.textPrimary,
-        toolbarHeight: 44,
-        actions: [
-          IconButton(
-            tooltip: 'Edit patient',
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => RegisterPatientScreen(patient: view.patient),
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Archive patient',
-            icon: const Icon(Icons.archive_outlined),
-            onPressed: () => _archive(context, ref, view.patient),
-          ),
-        ],
-      ),
       body: PageBody(
         children: [
-          const PageHeader(
-            title: 'Patient profile',
-            subtitle: 'Care details and visit history',
-          ),
-          Column(
+          Row(
             children: [
-              HbCard(
-                shadow: true,
-                child: Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                view.patient.fullName,
-                                style: HbText.headingMedium,
-                              ),
-                              const SizedBox(height: 3),
-                              Text(view.ageSex, style: HbText.bodySmall),
-                            ],
-                          ),
-                        ),
-                        StatusChip(
-                          view.status == StatusKind.followUp
-                              ? StatusKind.stable
-                              : view.status,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.person_outline,
-                              size: 13,
-                              color: HbColors.textSecondary,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(view.patient.village, style: HbText.bodySmall),
-                          ],
-                        ),
-                        Text(view.when, style: HbText.bodySmall),
-                      ],
-                    ),
-                  ],
-                ),
+              HbCircleButton(
+                icon: Icons.chevron_left,
+                tooltip: 'Back',
+                onPressed: () => Navigator.of(context).maybePop(),
               ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Patient ID \u00B7 ${view.patient.shortId}',
-                    style: HbText.bodySmall,
-                  ),
-                  if (view.status == StatusKind.followUp)
-                    const StatusChip(StatusKind.followUp),
-                ],
-              ),
-            ],
-          ),
-          if (latest != null)
-            HbCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Recent visit', style: HbText.labelMedium),
-                  const SizedBox(height: 8),
-                  DetailRow('Date', fullDate(latest.recordedAt.toLocal())),
-                  const SizedBox(height: 8),
-                  DetailRow('Visit type', visitTypeLabel(latest.type)),
-                  const SizedBox(height: 8),
-                  Text(
-                    latest.notes?.isNotEmpty == true
-                        ? latest.notes!
-                        : 'No notes recorded.',
-                    style: HbText.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          if (previous.isNotEmpty)
-            HbCard(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  SectionHeading(
-                    'Previous visits',
-                    action: showAll ? 'Show less' : 'View all',
-                    onAction: toggleHistory,
-                  ),
-                  for (final v in previous) ...[
-                    const SizedBox(height: 7),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          fullDate(v.recordedAt.toLocal()),
-                          style: HbText.bodySmall,
-                        ),
-                        Text(visitTypeLabel(v.type), style: HbText.labelSmall),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          if (due != null)
-            HbCard(
-              color: HbColors.amberTint,
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Upcoming follow-up', style: HbText.labelMedium),
-                  const SizedBox(height: 5),
-                  Text(fullDate(due), style: HbText.headingSmall),
-                  const SizedBox(height: 5),
-                  Text(
-                    '${visitTypeLabel(latest!.type)} check-in',
-                    style: HbText.bodySmall.copyWith(color: HbColors.warning),
-                  ),
-                ],
-              ),
-            ),
-          Column(
-            children: [
-              HbButton.primary(
-                'Record new visit',
-                icon: Icons.add_circle_outline,
+              const Spacer(),
+              HbCircleButton(
+                icon: Icons.edit_outlined,
+                tooltip: 'Edit patient',
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => RecordVisitScreen(patientId: patientId),
+                    builder: (_) =>
+                        RegisterPatientScreen(patient: view.patient),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              HbButton.secondary(
-                showAll ? 'Show recent only' : 'View history',
-                onPressed: toggleHistory,
+              const SizedBox(width: 10),
+              HbCircleButton(
+                icon: Icons.archive_outlined,
+                tooltip: 'Archive patient',
+                onPressed: () => _archive(context, ref, view.patient),
               ),
             ],
           ),
+          HbGradientCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    HbAvatar(
+                      view.patient.fullName,
+                      kind: AvatarKind.lime,
+                      size: 56,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            view.patient.fullName,
+                            style: HbText.headingLarge.copyWith(
+                              color: Colors.white,
+                              fontSize: 24,
+                            ),
+                          ),
+                          Text(
+                            [
+                              if (view.ageSex.isNotEmpty) view.ageSex,
+                              view.patient.village,
+                            ].join(' · '),
+                            style: HbText.bodySmall.copyWith(
+                              color: HbColors.onBrand,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0x33FFFFFF)),
+                const SizedBox(height: 12),
+                Text(
+                  switch (view.status) {
+                    StatusKind.urgent => 'Urgent at the last visit',
+                    StatusKind.attention => 'Needs attention',
+                    _ when due != null => 'Follow-up due ${fullDate(due)}',
+                    _ => 'Last visit: ${view.when}',
+                  },
+                  style: HbText.headingSmall.copyWith(
+                    color: view.status == StatusKind.urgent
+                        ? Colors.white
+                        : HbColors.lime,
+                  ),
+                ),
+                Text(
+                  latest == null
+                      ? 'No visits yet · ID ${view.patient.shortId}'
+                      : '${visitTypeLabel(latest.type)} · ID ${view.patient.shortId}',
+                  style: HbText.bodySmall.copyWith(color: HbColors.onBrand),
+                ),
+              ],
+            ),
+          ),
+          HbButton.primary(
+            'Record visit for $first',
+            icon: Icons.add,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RecordVisitScreen(patientId: patientId),
+              ),
+            ),
+          ),
+          if (shown.isNotEmpty) ...[
+            SectionHeading(
+              'Visits',
+              action: view.visits.length > 3
+                  ? (showAll ? 'Show less' : 'View all')
+                  : null,
+              onAction: toggleHistory,
+            ),
+            HbCard(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                children: [
+                  for (final (i, v) in shown.indexed) ...[
+                    if (i > 0)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 18),
+                        child: HbDivider(),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${fullDate(v.recordedAt.toLocal())} · ${visitTypeLabel(v.type)}',
+                                  style: HbText.headingSmall,
+                                ),
+                              ),
+                              if (v.isUrgent)
+                                Text(
+                                  'Urgent',
+                                  style: HbText.labelMedium.copyWith(
+                                    color: HbColors.red,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          Text(
+                            v.notes?.isNotEmpty == true
+                                ? v.notes!
+                                : 'No notes recorded.',
+                            style: HbText.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ],
       ),
       bottomNavigationBar: const SubPageNav(current: 1),
