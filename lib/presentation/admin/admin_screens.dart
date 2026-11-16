@@ -352,3 +352,152 @@ class _NewAccountScreenState extends ConsumerState<NewAccountScreen> {
     );
   }
 }
+
+class NewCentreController extends Notifier<bool> {
+  @override
+  bool build() => false; // busy
+
+  /// Returns null on success, or a message to show.
+  Future<String?> create({
+    required String name,
+    required String district,
+    required String sector,
+    String? callNumber,
+  }) async {
+    state = true;
+    try {
+      await ref
+          .read(adminRepositoryProvider)
+          .createCentre(
+            name: name,
+            district: district,
+            sector: sector,
+            callNumber: callNumber,
+          );
+      ref.invalidate(centresProvider);
+      return null;
+    } on ApiException catch (e) {
+      return e.code == 'invalid_request'
+          ? 'Check the fields and try again.'
+          : 'Could not save the health centre. Check your connection.';
+    } finally {
+      if (ref.mounted) state = false;
+    }
+  }
+}
+
+final newCentreProvider =
+    NotifierProvider.autoDispose<NewCentreController, bool>(
+      NewCentreController.new,
+    );
+
+/// The health centres, and a form to add one. Stateful only to own the text controllers.
+class CentresScreen extends ConsumerStatefulWidget {
+  const CentresScreen({super.key});
+
+  @override
+  ConsumerState<CentresScreen> createState() => _CentresScreenState();
+}
+
+class _CentresScreenState extends ConsumerState<CentresScreen> {
+  final _form = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _district = TextEditingController();
+  final _sector = TextEditingController();
+  final _call = TextEditingController();
+
+  @override
+  void dispose() {
+    for (final c in [_name, _district, _sector, _call]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    if (!_form.currentState!.validate()) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final call = _call.text.trim();
+    final error = await ref
+        .read(newCentreProvider.notifier)
+        .create(
+          name: _name.text,
+          district: _district.text,
+          sector: _sector.text,
+          callNumber: call.isEmpty ? null : normalizePhone(call),
+        );
+    if (error == null) {
+      for (final c in [_name, _district, _sector, _call]) {
+        c.clear();
+      }
+    }
+    messenger.showSnackBar(
+      SnackBar(content: Text(error ?? 'Health centre added')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = ref.watch(newCentreProvider);
+    final centres = ref.watch(centresProvider);
+    return Form(
+      key: _form,
+      child: PageBody(
+        children: [
+          const PageHeader(
+            title: 'Health centres',
+            subtitle: 'Each account belongs to one',
+          ),
+          ...centres.when(
+            loading: () => [const LinearProgressIndicator()],
+            error: (_, _) => [
+              Text(
+                'Could not load health centres.',
+                style: HbText.bodySmall.copyWith(color: HbColors.red),
+              ),
+            ],
+            data: (list) => [
+              if (list.isEmpty)
+                Text('No health centres yet.', style: HbText.bodySmall),
+              for (final c in list)
+                HbCard(child: Text(c.name, style: HbText.headingSmall)),
+            ],
+          ),
+          Text('New health centre', style: HbText.headingSmall),
+          HbTextField(
+            label: 'Name',
+            hint: 'e.g. Nyamata Health Centre',
+            controller: _name,
+            validator: (v) =>
+                requiredField(v) ??
+                (v!.trim().length < 2 ? 'At least 2 characters' : null),
+          ),
+          HbTextField(
+            label: 'District',
+            hint: 'District',
+            controller: _district,
+            validator: requiredField,
+          ),
+          HbTextField(
+            label: 'Sector',
+            hint: 'Sector',
+            controller: _sector,
+            validator: requiredField,
+          ),
+          HbTextField(
+            label: 'Call number (optional)',
+            hint: 'Shown to CHWs for urgent cases',
+            controller: _call,
+            keyboardType: TextInputType.phone,
+            validator: (v) =>
+                v == null || v.trim().isEmpty ? null : validatePhone(v),
+          ),
+          HbButton.primary(
+            busy ? 'Saving...' : 'Add health centre',
+            onPressed: busy ? null : _create,
+          ),
+        ],
+      ),
+    );
+  }
+}

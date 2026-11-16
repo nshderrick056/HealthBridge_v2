@@ -80,6 +80,27 @@ class _FakeAdmin extends AdminRepository {
 
   @override
   Future<void> approve(String requestId) async => approved.add(requestId);
+
+  final centreNames = <String>['Nyamata Health Centre'];
+  String? lastCall;
+
+  @override
+  Future<List<HealthCentre>> centres() async => [
+    for (final (i, n) in centreNames.indexed)
+      HealthCentre.fromJson({'id': 'hc$i', 'name': n}),
+  ];
+
+  @override
+  Future<String> createCentre({
+    required String name,
+    required String district,
+    required String sector,
+    String? callNumber,
+  }) async {
+    centreNames.add(name.trim());
+    lastCall = callNumber;
+    return 'hc${centreNames.length - 1}';
+  }
 }
 
 void main() {
@@ -155,4 +176,32 @@ void main() {
       expect(find.text('No one is waiting.'), findsOneWidget);
     },
   );
+
+  testWidgets('the admin adds a health centre, which joins the list', (
+    tester,
+  ) async {
+    final repo = _FakeAdmin();
+    await pump(tester, const CentresScreen(), [
+      adminRepositoryProvider.overrideWithValue(repo),
+    ]);
+    expect(find.text('Nyamata Health Centre'), findsOneWidget);
+
+    await tester.tap(find.text('Add health centre'));
+    await tester.pump();
+    expect(repo.centreNames, hasLength(1)); // empty form is refused
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Gashora Health Centre');
+    await tester.enterText(fields.at(1), 'Bugesera');
+    await tester.enterText(fields.at(2), 'Gashora');
+    await tester.enterText(fields.at(3), '0788 123 456');
+    await tester.ensureVisible(find.text('Add health centre'));
+    await tester.tap(find.text('Add health centre'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(repo.centreNames.last, 'Gashora Health Centre');
+    expect(repo.lastCall, '+250788123456');
+    expect(find.text('Gashora Health Centre'), findsOneWidget);
+  });
 }

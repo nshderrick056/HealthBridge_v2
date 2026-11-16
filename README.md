@@ -51,7 +51,7 @@ SMS fallback for urgent alerts. The specs are in [documents/](documents/).
 | Urgent alert by internet; supervisor inbox, escalate with note; admin new account and reset approval | done, tested on a phone |
 | Offline SMS alert and merge on Firebase | code and server tests done; last phone run was on the Postgres version (1 Nov) |
 | Web dashboard on Firebase sign-in | done, tested by unit tests only |
-| Tests | 124 Flutter (unit, widget, layout at 3 screen sizes), 42 server (Firebase emulators), 31 dashboard |
+| Tests | 125 Flutter (unit, widget, layout at 3 screen sizes), 42 server (Firebase emulators), 31 dashboard |
 
 ## Phone tests
 
@@ -73,7 +73,6 @@ and created the case; back online, the full visit replaced the partial one; Esca
 - **SMS:** the Africa's Talking sandbox only reaches its simulator. Real phones (urgent acks, reset codes, CHW
   notices) need a live Africa's Talking number. Firebase also allows only 10 sign-in SMS a day until billing is
   added (the test number does not count).
-- **Admin:** creating a health centre has no screen yet (`POST /admin/health-centers` works).
 - **Release:** host the API (Vercel) and dashboard, create the signing keystore and GitHub secrets (see Release).
 - **Clinical content:** the danger signs and validation ranges (`lib/data/forms/`) are placeholders until a
   clinician confirms them. **Kinyarwanda:** app text is English; it needs translation by a native speaker.
@@ -106,7 +105,7 @@ npm run dev                 # http://localhost:3001, sign in as supervisor@examp
 
 Demo accounts from `npm run seed`: CHWs `+250780000101` to `103` with `SEED_PIN` (sign in with the PIN: these
 numbers are not real phones); supervisor `supervisor@example.test` and admin `admin@example.test` with
-`SEED_PASSWORD`. In the app, the admin creates further accounts (New account tab) and approves resets.
+`SEED_PASSWORD`. In the app, the admin creates further accounts (New account tab), adds health centres (Centres tab) and approves resets.
 
 The first real admin of a project: `ADMIN_EMAIL=... ADMIN_PHONE=+250... ADMIN_PASSWORD='12+ chars' npm run create-admin`.
 

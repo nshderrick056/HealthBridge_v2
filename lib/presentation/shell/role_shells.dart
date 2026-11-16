@@ -67,19 +67,28 @@ class SupervisorShell extends StatelessWidget {
   );
 }
 
-/// The system admin: reset requests and new accounts.
+/// The system admin: reset requests, new accounts and health centres.
 class AdminShell extends StatelessWidget {
   const AdminShell({super.key});
 
   @override
   Widget build(BuildContext context) => _RoleShell(
     tab: _adminTab,
-    pages: const [ResetRequestsScreen(), NewAccountScreen(), ProfileScreen()],
+    pages: const [
+      ResetRequestsScreen(),
+      NewAccountScreen(),
+      CentresScreen(),
+      ProfileScreen(),
+    ],
     destinations: const [
       NavigationDestination(icon: Icon(Icons.lock_reset), label: 'Resets'),
       NavigationDestination(
         icon: Icon(Icons.person_add_alt_outlined),
         label: 'New account',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.local_hospital_outlined),
+        label: 'Centres',
       ),
       NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
     ],
