@@ -158,59 +158,72 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   static const _errorOnGreen = Color(0xFFFFD7D2);
 
   Widget _layout(LoginState login) => Scaffold(
-    body: DecoratedBox(
-      decoration: const BoxDecoration(gradient: HbGradients.deep),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 28),
-          child: Form(
-            key: _form,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'HealthBridge',
-                  style: HbText.headingMedium.copyWith(color: HbColors.lime),
-                ),
-                const SizedBox(height: 36),
-                Text(
-                  'Sign in',
-                  style: HbText.display.copyWith(color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Use the phone number your supervisor registered.',
-                  style: HbText.bodyMedium.copyWith(color: HbColors.onBrand),
-                ),
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
-                  children: [
-                    for (final (m, label) in const [
-                      (LoginMethod.pin, 'PIN'),
-                      (LoginMethod.smsCode, 'SMS code'),
-                      (LoginMethod.email, 'Email'),
-                    ])
-                      _MethodChip(
-                        label,
-                        selected: login.method == m,
-                        onTap: () => _choose(m),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                ..._fields(login),
-                const SizedBox(height: 32),
-                Text(
-                  'Your visits are kept on this phone and sent when you have signal.',
-                  style: HbText.bodySmall.copyWith(color: HbColors.onBrand),
-                ),
-              ],
+    // The green stays still when the keyboard opens; only the form scrolls up above it.
+    resizeToAvoidBottomInset: false,
+    body: Stack(
+      children: [
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(gradient: HbGradients.deep),
+          ),
+        ),
+        SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              40,
+              24,
+              28 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Form(
+              key: _form,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'HealthBridge',
+                    style: HbText.headingMedium.copyWith(color: HbColors.lime),
+                  ),
+                  const SizedBox(height: 36),
+                  Text(
+                    'Sign in',
+                    style: HbText.display.copyWith(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Use the phone number your supervisor registered.',
+                    style: HbText.bodyMedium.copyWith(color: HbColors.onBrand),
+                  ),
+                  const SizedBox(height: 20),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (final (m, label) in const [
+                        (LoginMethod.pin, 'PIN'),
+                        (LoginMethod.smsCode, 'SMS code'),
+                        (LoginMethod.email, 'Email'),
+                      ])
+                        _MethodChip(
+                          label,
+                          selected: login.method == m,
+                          onTap: () => _choose(m),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  ..._fields(login),
+                  const SizedBox(height: 32),
+                  Text(
+                    'Your visits are kept on this phone and sent when you have signal.',
+                    style: HbText.bodySmall.copyWith(color: HbColors.onBrand),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
+      ],
     ),
   );
 }

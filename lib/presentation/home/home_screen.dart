@@ -88,6 +88,39 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
         ),
+        SummaryRow(
+          children: [
+            Expanded(
+              child: SummaryCard(
+                icon: Icons.check,
+                tint: HbColors.greenTint,
+                color: HbColors.brand,
+                value: visited,
+                label: 'Visited today',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SummaryCard(
+                icon: Icons.event,
+                tint: HbColors.amberTint,
+                color: HbColors.warning,
+                value: due.length,
+                label: 'Due for a visit',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SummaryCard(
+                icon: Icons.warning_amber_rounded,
+                tint: HbColors.redTint,
+                color: HbColors.red,
+                value: urgent.length,
+                label: 'Urgent today',
+              ),
+            ),
+          ],
+        ),
         if (urgent.isNotEmpty)
           _UrgentCard(
             count: urgent.length,
