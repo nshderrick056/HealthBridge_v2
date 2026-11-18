@@ -102,6 +102,128 @@ dashboards (v3)". An operate-mode product: scanning and speed beat expression.
   the SMS alert carry only what triage needs.
 - Accounts are made by an admin; temporary credentials are texted and replaced at first sign-in.
 
+## Code ownership: five people
+
+The code is split into five **vertical slices**, one per person, so that every person owns **mobile app code and
+web dashboard code** (and a part of the server). Nobody works on the web only, and nobody on the app only.
+Each slice is a part of the product people can see and demo: its screens in the app, its pages on the web, the
+server routes behind them, and their tests.
+
+Sizes are hand-written lines on 18 November 2026, without tests and without `lib/data/db.g.dart` (5,800 generated
+lines, rebuilt by `dart run build_runner build`, never edited by hand). `lib/` is the app, `dashboard/` the web,
+`server/` the server.
+
+| Person | Slice | App (lines) | Web (lines) | Server (lines) | About |
+| --- | --- | --- | --- | --- | --- |
+| **1** | Sign-in, accounts and the web frame | 1,570 | 860 | 650 | 3,080 |
+| **2** | Patients, visits and the records database | 2,730 | 320 | rules 150 | 3,200 |
+| **3** | Urgent alerts, SMS and sync | 1,960 | 350 | 560 | 2,870 |
+| **4** | Supervisor triage, home screens and history | 1,880 | 510 | 390 | 2,780 |
+| **5** | Admin, design system and member management | 1,910 | 920 | 220 | 3,050 |
+
+### Person 1: sign-in, accounts and the web frame
+
+You can demo: signing in by PIN, SMS code and email; the temporary PIN that must be replaced; forgot PIN; the
+supervisor and admin sign-in on the web; the sidebar and Sign out.
+
+- **App:** `lib/app.dart`, `lib/main.dart`, `lib/core/auth/`, `lib/core/settings/`, `lib/presentation/auth/` (login,
+  forgot, change secret and their controllers), `lib/presentation/profile/`, `lib/presentation/settings/`.
+- **Web:** `dashboard/app/login/`, `dashboard/components/LoginForm.tsx`, `dashboard/lib/session.ts`,
+  `dashboard/lib/proxy.ts`, `dashboard/lib/client.ts`, `dashboard/lib/types.ts`, `dashboard/proxy.ts`,
+  `dashboard/app/api/` (login, logout, the forwarder), the frame: `dashboard/app/layout.tsx`, `app/page.tsx`,
+  `app/globals.css`, `app/(dashboard)/layout.tsx`, `components/Shell.tsx`, `NavLinks.tsx`, `icons.tsx`, and the
+  dashboard config files.
+- **Server:** `server/src/accounts.ts`, `auth/`, `middleware/`, `app.ts`, `env.ts`, `firebase.ts`, `http.ts`,
+  `index.ts`, `server/api/index.ts`, `server/scripts/`, `.env.example` files.
+- **Tests:** `test/presentation/controllers_test.dart`, `server/test/auth.test.ts`, `server/test/emulator.ts`,
+  `dashboard/test/LoginForm.test.tsx`, `dashboard/test/server.test.ts`, `dashboard/test/helpers.ts`.
+
+### Person 2: patients, visits and the records database
+
+You can demo: registering, editing and archiving a patient; recording a visit with danger signs; opening a past
+visit; the Patients pages on the web; the rules that decide who may read what.
+
+- **App:** `lib/data/` (`db.dart`, `db_connection*.dart`, `models.dart`, `providers.dart`, `forms/`, and the
+  repositories for patients, visits, drafts, danger signs and `local_owner.dart`), `lib/domain/` (enums, the
+  patient and visit repositories, use cases), `lib/presentation/patients/` (list, profile, register, visit detail),
+  `lib/presentation/record/` (record, review and saved screens, `visit_form.dart`),
+  `lib/presentation/view_models.dart`.
+- **Web:** `dashboard/components/PatientList.tsx`, `PatientHistory.tsx`, `VisitHistory.tsx`,
+  `dashboard/lib/history.ts`, `dashboard/app/(dashboard)/patients/`.
+- **Server and data:** `firestore.rules`, `firestore.indexes.json`, `docs/ERD.md`.
+- **Tests:** `test/data/`, `test/domain/`, `test/widget_test.dart` (recording and profile cases),
+  `test/presentation/view_models_test.dart`, `dashboard/test/PatientHistory.test.tsx`.
+
+### Person 3: urgent alerts, SMS and sync
+
+You can demo: an urgent visit sent over the internet and, with no signal, by encrypted SMS; the `HB OK`
+confirmation; Resend and Call; the Sync screen with Retry; the live alert inbox on the web.
+
+- **App:** `lib/sync/` (engine, service, background sync, Firestore mapping), `lib/urgent/` (dispatcher, sender,
+  service), `lib/core/sms/` (the codec), `lib/data/repositories/urgent_repository.dart`,
+  `lib/presentation/sync/`, `lib/presentation/alerts/`, and the two screens
+  `lib/presentation/record/urgent_detected_screen.dart` and `sms_alert_sent_screen.dart`.
+- **Web:** `dashboard/components/AlertInbox.tsx` (the live inbox, polling every 10 s, filters, counts),
+  `badges.tsx` (status, channel and pending tags), `usePolling.ts`, `dashboard/lib/format.ts`,
+  `dashboard/app/(dashboard)/alerts/page.tsx`.
+- **Server:** `server/src/sms/` (codec, gateway, key store, webhook), `devices/` (device keys), `visits/merge.ts`
+  (SMS case plus full visit become one case).
+- **Tests:** `test/sync/`, `test/urgent/`, `test/core/sms/`, `shared/sms-vectors.json`, `server/test/sms.test.ts`,
+  `server/test/sms-codec.test.ts`, `dashboard/test/AlertInbox.test.tsx`, `dashboard/test/format.test.ts`.
+
+### Person 4: supervisor triage, home screens and history
+
+You can demo: a supervisor working an alert (reviewed, escalated, follow-up, resolved, with a note and a call to
+the CHW); the CHW list and one CHW's visits; the supervisor's Patients list and a patient's history; the CHW home
+with its stat cards.
+
+- **App:** `lib/presentation/supervisor/` (inbox, case, CHWs, `history_screens.dart`, controllers),
+  `lib/presentation/home/` (the CHW home, stat cards, due visits),
+  `lib/data/repositories/supervision_repository.dart`, `lib/domain/entities/supervision.dart`.
+- **Web:** `dashboard/components/CaseDetail.tsx`, `ChwList.tsx`, `ChwHistory.tsx`,
+  `dashboard/app/(dashboard)/alerts/[id]/`, `dashboard/app/(dashboard)/chws/`.
+- **Server:** `server/src/supervisor/routes.ts` (alerts, status changes, CHWs, patients, histories).
+- **Tests:** the supervisor cases in `test/presentation/role_screens_test.dart`, `server/test/supervisor.test.ts`,
+  `dashboard/test/CaseDetail.test.tsx`, `dashboard/test/ChwList.test.tsx`.
+
+### Person 5: admin, design system and member management
+
+You can demo: approving a reset; adding, switching off and deleting a member; a health centre's page; the Members
+tabs on the web; and any screen looking right (theme, widgets, tab bars).
+
+- **App:** `lib/core/theme/`, `lib/core/widgets/` (cards, buttons, avatars, pills, the tab bars),
+  `lib/core/api/`, `lib/presentation/admin/` (resets, new account, centres), `lib/presentation/shell/` (the CHW
+  tabs and the supervisor and admin shells).
+- **Web:** `dashboard/components/admin/` (`ResetRequests`, `Members`, `MemberDetail`, `NewAccount`, `Centres`,
+  `CentreDetail`), `dashboard/app/admin/`, `dashboard/lib/admin.ts`.
+- **Server:** `server/src/admin/routes.ts` (members, deactivate, delete, centres, resets).
+- **Tests:** `test/layout_test.dart` (every screen at four sizes), the admin cases in
+  `test/presentation/role_screens_test.dart`, `server/test/admin.test.ts`, `dashboard/test/MemberDetail.test.tsx`.
+
+### Where slices meet
+
+These files are used by more than one person. The owner decides; the others ask or open a pull request.
+
+| Shared thing | Owner | Who else touches it, and how |
+| --- | --- | --- |
+| Theme and shared widgets (`lib/core/theme`, `lib/core/widgets`) | 5 | Everyone uses them. Need a new widget? Build it in your own folder, then offer it to 5. |
+| Local database tables (`lib/data/db.dart`) | 2 | Person 3 adds outbox and dispatch tables. Change it in a pull request reviewed by 2, then run `dart run build_runner build`. On a merge conflict in `db.g.dart`, regenerate it. |
+| Router list (`server/src/app.ts`) | 1 | Each person adds one line for their router. |
+| Dashboard shared types (`dashboard/lib/types.ts`) and sidebar links (`NavLinks.tsx`) | 1 | Each person adds the types and the link for their pages. |
+| Test helpers (`server/test/emulator.ts`, `dashboard/test/helpers.ts`) | 1 | Add helpers; do not change existing ones. |
+| Supervisor API (`server/src/supervisor/routes.ts`) | 4 | Person 3's inbox (`/alerts`) and person 2's Patients pages (`/patients`) read it. A change to a response needs a note to them. |
+| Firestore rules (`firestore.rules`) | 2 | Person 3 asks 2 when alerts or SMS need a new field; deploy with `firebase deploy --only firestore`. |
+| `test/widget_test.dart`, `test/presentation/role_screens_test.dart` | 2 and 4/5 | One file, split by test name: each person edits only their own cases. |
+| This file and `README.md` | all | Each person keeps their own slice's section true. |
+
+### Working rules
+
+- One branch per person per task, named `feat/<slice>-<what>`, off the latest `main`; one other person reviews.
+- Before opening a pull request, run your slice's tests: `flutter test <your test files>`, `cd server && npm test`
+  (needs Java 21 for the emulators), `cd dashboard && npm test` and `npm run typecheck`; and `flutter analyze`.
+- Every person submits **both** app and web code. A pull request that touches only one of the two is fine, but
+  over a sprint each person's merged work must include both.
+
 ## State of the project
 
 Built and tested: sign-in, offline records, sync, urgent alert by internet, supervisor inbox and case actions,
