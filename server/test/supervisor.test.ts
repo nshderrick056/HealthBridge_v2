@@ -109,3 +109,46 @@ describe('supervisor API', () => {
     expect(res.body.chws).toEqual([expect.objectContaining({ id: 'chw-a', name: 'CHW chw-a', pendingCount: 1 })]);
   });
 });
+
+describe('supervisor history API', () => {
+  it("shows a CHW's visits newest first with patient and sign labels; other centres get 404", async () => {
+    const older = await urgentCase(10);
+    const newer = await urgentCase(11);
+    const res = await request(app).get('/chws/chw-a').set('authorization', supA).expect(200);
+    expect(res.body.chw).toMatchObject({ id: 'chw-a', name: 'CHW chw-a' });
+    const ids = res.body.visits.map((v: { id: string }) => v.id);
+    expect(ids.indexOf(newer)).toBeLessThan(ids.indexOf(older));
+    expect(res.body.visits.find((v: { id: string }) => v.id === newer)).toMatchObject({
+      type: 'maternal',
+      isUrgent: true,
+      dangerSigns: ['Heavy bleeding'],
+      patient: { shortId: 'P11', name: 'Uwase Marie' },
+    });
+    await request(app).get('/chws/chw-a').set('authorization', supB).expect(404);
+    await request(app).get('/chws/sup-a').set('authorization', supA).expect(404); // not a CHW
+  });
+
+  it("lists the centre's patients with their latest visit, searches them, and opens one with its history", async () => {
+    const visitId = await urgentCase(12);
+    const patientId = (await fs.collection('visits').doc(visitId).get()).data()!.patientId as string;
+
+    const list = await request(app).get('/patients').set('authorization', supA).expect(200);
+    expect(list.body.patients.find((p: { id: string }) => p.id === patientId)).toMatchObject({
+      shortId: 'P12',
+      name: 'Uwase Marie',
+      chw: { id: 'chw-a', name: 'CHW chw-a' },
+      lastVisitUrgent: true,
+      visitCount: 1,
+    });
+    const found = await request(app).get('/patients?q=p12').set('authorization', supA).expect(200);
+    expect(found.body.patients.map((p: { id: string }) => p.id)).toEqual([patientId]);
+    expect((await request(app).get('/patients').set('authorization', supB).expect(200)).body.patients).toEqual([]);
+
+    const one = await request(app).get(`/patients/${patientId}`).set('authorization', supA).expect(200);
+    expect(one.body.patient).toMatchObject({ id: patientId, shortId: 'P12', village: 'Nyamata', archived: false });
+    expect(one.body.chw).toMatchObject({ id: 'chw-a', phone: '+250780000501' });
+    expect(one.body.visits).toHaveLength(1);
+    expect(one.body.visits[0]).toMatchObject({ id: visitId, dangerSigns: ['Heavy bleeding'] });
+    await request(app).get(`/patients/${patientId}`).set('authorization', supB).expect(404);
+  });
+});
