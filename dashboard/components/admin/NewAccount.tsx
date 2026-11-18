@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { errorText, normalizePhone, type Centre } from '@/lib/admin';
 import { api, ApiError } from '@/lib/client';
@@ -86,8 +87,14 @@ export function NewAccount() {
 
   return (
     <div className="space-y-6">
+      <Link
+        href="/admin/members"
+        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-4 text-[15px] font-medium shadow-card hover:bg-teal-tint"
+      >
+        <span aria-hidden>←</span> All members
+      </Link>
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Add an account</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Add a member</h1>
         <p className="mt-1 max-w-3xl text-muted">
           There is no self sign-up. The person gets a temporary PIN or password by SMS and chooses their own at first
           sign-in.

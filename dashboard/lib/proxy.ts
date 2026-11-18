@@ -14,6 +14,11 @@ const ROUTES: { method: string; path: RegExp }[] = [
   { method: 'GET', path: /^admin\/reset-requests$/ },
   { method: 'POST', path: /^admin\/reset-requests\/[A-Za-z0-9_-]{1,64}\/approve$/ },
   { method: 'GET', path: /^admin\/health-centers$/ },
+  { method: 'GET', path: /^admin\/health-centers\/[A-Za-z0-9_-]{1,128}$/ },
+  { method: 'GET', path: /^admin\/users$/ },
+  { method: 'GET', path: /^admin\/users\/[A-Za-z0-9_-]{1,128}$/ },
+  { method: 'PATCH', path: /^admin\/users\/[A-Za-z0-9_-]{1,128}$/ },
+  { method: 'DELETE', path: /^admin\/users\/[A-Za-z0-9_-]{1,128}$/ },
   { method: 'POST', path: /^admin\/health-centers$/ },
   { method: 'POST', path: /^admin\/users$/ },
 ];

@@ -13,7 +13,7 @@ const LINKS = {
   ],
   admin: [
     { href: '/admin/resets', label: 'Reset requests', short: 'Resets', Icon: KeyIcon },
-    { href: '/admin/accounts', label: 'Add an account', short: 'Accounts', Icon: UserPlusIcon },
+    { href: '/admin/members', label: 'Members', short: 'Members', Icon: UserPlusIcon },
     { href: '/admin/centres', label: 'Health centres', short: 'Centres', Icon: HospitalIcon },
   ],
 };

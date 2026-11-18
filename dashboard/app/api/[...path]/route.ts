@@ -11,6 +11,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   return forward(req, (await params).path);
 }
 
+export async function DELETE(req: NextRequest, { params }: Ctx) {
+  return forward(req, (await params).path);
+}
+
 export async function POST(req: NextRequest, { params }: Ctx) {
   return forward(req, (await params).path);
 }

@@ -11,6 +11,29 @@ export type ResetRequest = {
 
 export type Centre = { id: string; name: string; district: string | null };
 
+export type Member = {
+  id: string;
+  role: 'chw' | 'supervisor';
+  fullName: string;
+  phone: string;
+  email: string | null;
+  chwRole: 'asm' | 'binome' | null;
+  village: string | null;
+  healthCenterId: string | null;
+  healthCenterName?: string | null;
+  active: boolean;
+  createdAt: string | null;
+};
+
+export type CentreDetails = {
+  id: string;
+  name: string;
+  district: string | null;
+  sector: string | null;
+  callNumber: string | null;
+  members: Member[];
+};
+
 /** 0788 123 456, 250788123456 or +250788123456 → +250788123456; null when it is not a phone number. */
 export function normalizePhone(input: string): string | null {
   const s = input.replace(/[\s().-]/g, '');

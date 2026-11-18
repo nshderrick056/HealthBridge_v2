@@ -105,3 +105,44 @@ describe('admin accounts (no self sign-up)', () => {
     });
   });
 });
+
+describe('admin members', () => {
+  it('lists members, switches an account off and on, and refuses to touch admins', async () => {
+    await chw('chw-m', 'hc-a', '+250780000398');
+    const get = (path: string) => request(app).get(path).set('authorization', adminToken);
+    const patch = (path: string, body: object) => request(app).patch(path).set('authorization', adminToken).send(body);
+
+    const list = (await get('/admin/users?role=chw').expect(200)).body.members;
+    expect(list.find((m: { id: string }) => m.id === 'chw-m')).toMatchObject({ active: true, healthCenterId: 'hc-a' });
+    await get('/admin/users?role=admin').expect(400);
+
+    await patch('/admin/users/chw-m', { active: false }).expect(200);
+    expect((await fb.fs.collection('users').doc('chw-m').get()).data()!.active).toBe(false);
+    expect((await fb.auth.getUser('chw-m')).disabled).toBe(true);
+    await patch('/admin/users/chw-m', { active: true }).expect(200);
+    expect((await fb.auth.getUser('chw-m')).disabled).toBe(false);
+
+    await patch('/admin/users/admin-1', { active: false }).expect(404);
+    await request(app).delete('/admin/users/admin-1').set('authorization', adminToken).expect(404);
+  });
+
+  it('deletes an account and its sign-in details but keeps the records they made', async () => {
+    await chw('chw-del', 'hc-a', '+250780000397');
+    await fb.fs.collection('credentials').doc('chw-del').set({ pinHash: 'x' });
+    await fb.fs.collection('patients').doc('p-del').set({ chwId: 'chw-del', healthCenterId: 'hc-a' });
+
+    await request(app).delete('/admin/users/chw-del').set('authorization', adminToken).expect(200);
+    expect((await fb.fs.collection('users').doc('chw-del').get()).exists).toBe(false);
+    expect((await fb.fs.collection('credentials').doc('chw-del').get()).exists).toBe(false);
+    await expect(fb.auth.getUser('chw-del')).rejects.toMatchObject({ code: 'auth/user-not-found' });
+    expect((await fb.fs.collection('patients').doc('p-del').get()).exists).toBe(true);
+    await request(app).delete('/admin/users/chw-del').set('authorization', adminToken).expect(404);
+  });
+
+  it('shows a health centre with its members', async () => {
+    const res = await request(app).get('/admin/health-centers/hc-a').set('authorization', adminToken).expect(200);
+    expect(res.body.id).toBe('hc-a');
+    expect(res.body.members.map((m: { id: string }) => m.id)).toContain('chw-x');
+    await request(app).get('/admin/health-centers/none').set('authorization', adminToken).expect(404);
+  });
+});

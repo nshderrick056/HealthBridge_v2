@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { errorText, normalizePhone, type Centre } from '@/lib/admin';
 import { api, ApiError } from '@/lib/client';
@@ -77,7 +78,9 @@ export function Centres() {
                     <HospitalIcon className="size-5" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-[17px] font-semibold">{c.name}</p>
+                    <Link href={`/admin/centres/${c.id}`} className="text-[17px] font-semibold underline-offset-4 hover:underline">
+                      {c.name}
+                    </Link>
                     {c.district && <p className="text-[15px] text-muted">{c.district}</p>}
                   </div>
                 </li>
