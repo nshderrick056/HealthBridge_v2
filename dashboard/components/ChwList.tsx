@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { formatDateTime, timeAgo } from '@/lib/format';
 import type { Chw } from '@/lib/types';
 import { Avatar } from './badges';
@@ -53,7 +54,9 @@ export function ChwList() {
                       <span className="flex items-center gap-3">
                         <Avatar name={c.name} tone={c.pendingCount > 0 ? 'due' : 'plain'} />
                         <span>
-                          <span className="font-semibold">{c.name}</span>
+                          <Link href={`/chws/${c.id}`} className="font-semibold underline-offset-4 hover:underline">
+                            {c.name}
+                          </Link>
                           {c.chwRole && <span className="ml-2 text-sm text-muted">{ROLE[c.chwRole]}</span>}
                         </span>
                       </span>

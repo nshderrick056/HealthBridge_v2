@@ -9,6 +9,7 @@ const LINKS = {
   supervisor: [
     { href: '/alerts', label: 'Urgent alerts', short: 'Alerts', Icon: AlertIcon },
     { href: '/chws', label: 'Community health workers', short: 'CHWs', Icon: UserIcon },
+    { href: '/patients', label: 'Patients', short: 'Patients', Icon: HospitalIcon },
   ],
   admin: [
     { href: '/admin/resets', label: 'Reset requests', short: 'Resets', Icon: KeyIcon },
