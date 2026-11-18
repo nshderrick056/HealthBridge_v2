@@ -160,7 +160,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _layout(LoginState login) => Scaffold(
     // The green stays still when the keyboard opens; only the form scrolls up above it.
     resizeToAvoidBottomInset: false,
+    // The gradient ends in this colour, so no light edge can show below it.
+    backgroundColor: HbColors.brandDeep,
     body: Stack(
+      fit: StackFit.expand,
       children: [
         const Positioned.fill(
           child: DecoratedBox(
