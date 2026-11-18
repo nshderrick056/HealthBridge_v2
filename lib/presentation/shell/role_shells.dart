@@ -5,6 +5,7 @@ import '../../core/widgets/bottom_nav.dart';
 import '../admin/admin_screens.dart';
 import '../profile/profile_screen.dart';
 import '../supervisor/chws_screen.dart';
+import '../supervisor/history_screens.dart';
 import '../supervisor/inbox_screen.dart';
 
 /// Tab index for the supervisor and admin shells (each starts on its first tab).
@@ -56,10 +57,16 @@ class SupervisorShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _RoleShell(
     tab: _supervisorTab,
-    pages: const [InboxScreen(), ChwsScreen(), ProfileScreen()],
+    pages: const [
+      InboxScreen(),
+      ChwsScreen(),
+      SupervisorPatientsScreen(),
+      ProfileScreen(),
+    ],
     items: const [
       (Icons.warning_amber_rounded, 'Alerts'),
       (Icons.groups_outlined, 'CHWs'),
+      (Icons.folder_shared_outlined, 'Patients'),
       (Icons.person_outline, 'Profile'),
     ],
   );

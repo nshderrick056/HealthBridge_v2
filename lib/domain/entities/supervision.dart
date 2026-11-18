@@ -133,6 +133,117 @@ class ChwSummary {
   final int pendingCount;
 }
 
+/// A visit as the supervisor's history screens show it: what the CHW recorded.
+class HistoryVisit {
+  HistoryVisit.fromJson(Map<String, dynamic> j)
+    : id = j['id'] as String,
+      type = j['type'] as String?,
+      recordedAt = _date(j['recordedAt']),
+      isUrgent = j['isUrgent'] as bool? ?? false,
+      isPartial = j['isPartial'] as bool? ?? false,
+      dangerSigns = ((j['dangerSigns'] as List?) ?? const []).cast<String>(),
+      temperature = (j['temperature'] as num?)?.toDouble(),
+      condition = j['condition'] as String?,
+      symptoms = j['symptoms'] as String?,
+      notes = j['notes'] as String?,
+      followUpOn = _date(j['followUpOn']),
+      patientId = (j['patient'] as Map?)?['id'] as String?,
+      patientShortId = (j['patient'] as Map?)?['shortId'] as String?,
+      patientName = (j['patient'] as Map?)?['name'] as String?;
+
+  final String id;
+  final String? type;
+  final DateTime? recordedAt;
+  final bool isUrgent;
+  final bool isPartial;
+  final List<String> dangerSigns;
+  final double? temperature;
+  final String? condition;
+  final String? symptoms;
+  final String? notes;
+  final DateTime? followUpOn;
+
+  /// Only on a CHW's history, where each visit is for a different patient.
+  final String? patientId;
+  final String? patientShortId;
+  final String? patientName;
+}
+
+String? _ageSex(Map<String, dynamic> j) {
+  final birth = _date(j['birthDate']);
+  final age = birth != null
+      ? DateTime.now().difference(birth).inDays ~/ 365
+      : (j['ageEstimate'] as num?)?.toInt();
+  final sex = switch (j['sex']) {
+    'F' => 'Female',
+    'M' => 'Male',
+    _ => null,
+  };
+  final s = [if (age != null) '$age years', ?sex].join(' · ');
+  return s.isEmpty ? null : s;
+}
+
+/// One of the centre's patients in the supervisor's list.
+class PatientRow {
+  PatientRow.fromJson(Map<String, dynamic> j)
+    : id = j['id'] as String,
+      shortId = j['shortId'] as String?,
+      name = j['name'] as String?,
+      village = j['village'] as String?,
+      ageSex = _ageSex(j),
+      chwName = (j['chw'] as Map?)?['name'] as String?,
+      lastVisitAt = _date(j['lastVisitAt']),
+      lastVisitUrgent = j['lastVisitUrgent'] as bool? ?? false,
+      visitCount = (j['visitCount'] as num?)?.toInt() ?? 0;
+
+  final String id;
+  final String? shortId;
+
+  /// Null until the full record of an SMS-only case arrives.
+  final String? name;
+  final String? village;
+  final String? ageSex;
+  final String? chwName;
+  final DateTime? lastVisitAt;
+  final bool lastVisitUrgent;
+  final int visitCount;
+}
+
+/// A CHW and every visit they recorded, newest first.
+class ChwHistory {
+  ChwHistory.fromJson(Map<String, dynamic> j)
+    : chw = ChwSummary.fromJson(j['chw'] as Map<String, dynamic>),
+      visits = [
+        for (final v in j['visits'] as List)
+          HistoryVisit.fromJson(v as Map<String, dynamic>),
+      ];
+
+  final ChwSummary chw;
+  final List<HistoryVisit> visits;
+}
+
+/// A patient of the centre, their CHW and every visit, newest first.
+class PatientHistory {
+  PatientHistory.fromJson(Map<String, dynamic> j)
+    : patient = PatientRow.fromJson({
+        ...(j['patient'] as Map<String, dynamic>),
+        'chw': j['chw'],
+      }),
+      archived = (j['patient'] as Map)['archived'] as bool? ?? false,
+      chwId = (j['chw'] as Map?)?['id'] as String?,
+      chwPhone = (j['chw'] as Map?)?['phone'] as String?,
+      visits = [
+        for (final v in j['visits'] as List)
+          HistoryVisit.fromJson(v as Map<String, dynamic>),
+      ];
+
+  final PatientRow patient;
+  final bool archived;
+  final String? chwId;
+  final String? chwPhone;
+  final List<HistoryVisit> visits;
+}
+
 class ResetRequest {
   ResetRequest.fromJson(Map<String, dynamic> j)
     : id = j['id'] as String,

@@ -34,6 +34,26 @@ class SupervisionRepository {
         ChwSummary.fromJson(c as Map<String, dynamic>),
     ];
   }
+
+  /// A CHW of the centre and their visits, newest first.
+  Future<ChwHistory> chw(String id) async =>
+      ChwHistory.fromJson(await _api.get('/chws/$id'));
+
+  /// The centre's patients, latest visit first; [query] searches name, patient ID and village.
+  Future<List<PatientRow>> patients({String? query}) async {
+    final q = query?.trim();
+    final j = await _api.get(
+      '/patients',
+      query: {if (q != null && q.isNotEmpty) 'q': q},
+    );
+    return [
+      for (final p in j['patients'] as List)
+        PatientRow.fromJson(p as Map<String, dynamic>),
+    ];
+  }
+
+  Future<PatientHistory> patient(String id) async =>
+      PatientHistory.fromJson(await _api.get('/patients/$id'));
 }
 
 /// The system admin's tools: reset requests, accounts and health centres. There is no self sign-up.

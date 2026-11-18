@@ -10,6 +10,7 @@ import '../shell/app_shell.dart';
 import '../view_models.dart';
 import 'patient_profile_controller.dart';
 import 'register_patient_screen.dart';
+import 'visit_detail_screen.dart';
 
 class PatientProfileScreen extends ConsumerWidget {
   const PatientProfileScreen({super.key, required this.patientId});
@@ -201,35 +202,42 @@ class PatientProfileScreen extends ConsumerWidget {
                         padding: EdgeInsets.symmetric(horizontal: 18),
                         child: HbDivider(),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${fullDate(v.recordedAt.toLocal())} · ${visitTypeLabel(v.type)}',
-                                  style: HbText.headingSmall,
-                                ),
-                              ),
-                              if (v.isUrgent)
-                                Text(
-                                  'Urgent',
-                                  style: HbText.labelMedium.copyWith(
-                                    color: HbColors.red,
+                    InkWell(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => VisitDetailScreen(visitId: v.id),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${fullDate(v.recordedAt.toLocal())} · ${visitTypeLabel(v.type)}',
+                                    style: HbText.headingSmall,
                                   ),
                                 ),
-                            ],
-                          ),
-                          Text(
-                            v.notes?.isNotEmpty == true
-                                ? v.notes!
-                                : 'No notes recorded.',
-                            style: HbText.bodySmall,
-                          ),
-                        ],
+                                if (v.isUrgent)
+                                  Text(
+                                    'Urgent',
+                                    style: HbText.labelMedium.copyWith(
+                                      color: HbColors.red,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            Text(
+                              v.notes?.isNotEmpty == true
+                                  ? v.notes!
+                                  : 'No notes recorded.',
+                              style: HbText.bodySmall,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
