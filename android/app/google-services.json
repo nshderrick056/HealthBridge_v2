@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "455763045126",
+    "project_id": "healthbridge-rwanda",
+    "storage_bucket": "healthbridge-rwanda.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:455763045126:android:13f38cbe07fb513568cc87",
+        "android_client_info": {
+          "package_name": "rw.healthbridge.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtRaPJqohdHUSvVsDh1clK1yY8DhH7q9w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:455763045126:android:9cfe91d7a6e2e48b68cc87",
+        "android_client_info": {
+          "package_name": "rw.healthbridge.app.managed"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtRaPJqohdHUSvVsDh1clK1yY8DhH7q9w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

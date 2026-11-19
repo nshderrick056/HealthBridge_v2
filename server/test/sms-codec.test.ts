@@ -1,6 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CodecError, SMS_MAX, decodePlaintext, encodePlaintext, openSms, parseSms, seal } from '../src/sms/codec';
+import { CodecError, SMS_MAX, ackTag, decodePlaintext, encodePlaintext, openSms, parseSms, seal } from '../src/sms/codec';
+
+// Same vector as test/core/sms/codec_test.dart, so the server's tag and the phone's check agree.
+describe('ack tag', () => {
+  it('is the first 12 hex of HMAC-SHA256 over "HB OK <code>" with the device key', () => {
+    const key = Buffer.from('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f', 'hex');
+    expect(ackTag(key, '7f3c9a21')).toBe('8390abb11a59');
+    expect(ackTag(key, '7f3c9a22')).not.toBe('8390abb11a59');
+  });
+});
 
 // Shared with test/core/sms/codec_test.dart: both languages must produce and accept exactly these.
 const vectors = JSON.parse(readFileSync(new URL('../../shared/sms-vectors.json', import.meta.url), 'utf8'));
