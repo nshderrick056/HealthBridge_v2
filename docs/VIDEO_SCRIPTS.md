@@ -1,96 +1,106 @@
-# Video demo: five 3-minute scripts
+# Video demo scripts (15 minutes, five people)
 
-One continuous recording of the **release APK on a physical phone**, 1080p, no cuts, no speed-ups, no slide deck, no team introductions. Every member speaks, and each hand-off is one sentence. Total: 15 minutes (the limit is 10 to 15, so aim for 2:45 each and finish near 14).
+One continuous recording, 1080p, no cuts, no speed-ups, no slide deck, no team introductions. The release APK runs on a physical phone. The assignment also asks that every member presents an aspect, and that the video shows both sign-in methods, CRUD with the Firebase Console visible, and the app on a real device.
 
-The code snippets below are **speaker notes**, not slides. Say the file name and the technical term out loud; the rubric forbids a deck, so do not screen-share code unless the lecturer allows it. The same snippets go in the written report.
+## Structure
 
-## The seven required actions, and who does them
-
-| # | Required action | Person |
+| Time | Who | What |
 |---|---|---|
-| 1 | Cold-start launch | 1 |
-| 2 | Register, log out, log in | 1 |
-| 3 | Visit every screen and rotate once | 4 (CHW and supervisor screens), 5 (admin screens and the rotation) |
-| 4 | Create, read, update, delete in Firestore with the Firebase Console visible | 2 |
-| 5 | A state update that touches two widgets | 3 |
-| 6 | Change a SharedPreferences setting, restart, show it persisted | 1 |
-| 7 | Force a validation error and show a polite message | 1 (login) and 2 (forms) |
+| 0:00 to 5:00 | **Person 4, the guide** | How the app and both dashboards work. Performs all 7 required actions. |
+| 5:00 to 7:00 | Person 1 | Code: authentication, SharedPreferences, why Riverpod |
+| 7:00 to 9:00 | Person 2 | Code: Firestore CRUD, ERD to Firestore, security rules |
+| 9:00 to 11:00 | Person 3 | Code: urgent alerts, sync, the shared-state update |
+| 11:00 to 13:00 | Person 4 | Code: clean architecture, supervisor case flow |
+| 13:00 to 14:45 | Person 5 | Code: design system, layout and tests, GitHub history |
+| 14:45 to 15:00 | Person 5 | One-line close |
+
+The guide (Person 4) speaks twice: the 5-minute tour, then their own 2 minutes of code. The other four speak once, for 2 minutes. If you run short or long, the "cut first" list at the bottom says what to drop.
+
+**How code is shown without a slide deck:** keep the laptop on the same table. Each person opens the named file in the editor (large font) and points the phone camera or a second camera at the screen, or the recording captures the laptop screen. Say the file name and the term aloud. If the lecturer does not allow showing code at all, speak the same script from the "say" lines and keep the snippets for the report.
+
+## The 7 required actions (all inside the guide's 5 minutes)
+
+| # | Action | Where in the tour |
+|---|---|---|
+| 1 | Cold-start launch | 0:00 |
+| 2 | Register, log out, log in | 0:25 to 1:20 |
+| 3 | Visit every screen and rotate once | 1:20 to 2:20 |
+| 4 | Create, read, update, delete in Firestore with the Console visible | 2:50 to 3:30 |
+| 5 | A state update touching two widgets | 2:20 to 2:50 |
+| 6 | Change a SharedPreferences setting, restart, show it persisted | 3:30 to 4:00 |
+| 7 | Force a validation error with a polite message | 0:45 and 1:50 |
 
 ## Before recording (everyone)
 
-- Phone on release APK, Wi-Fi on, Firebase Console open on a laptop in view of the camera or on a split screen.
-- One test admin, one supervisor, one CHW already created. Know the temporary PIN of the CHW you will "register".
-- `flutter analyze` shows 0 issues and `flutter test` passes (129 tests) the day before; you will say it in one sentence each.
-- **Rehearse Person 3's offline SMS path.** It was not phone-tested on the Firebase build. If it fails on the day, show the online path and the Sync screen instead, and say the SMS path is covered by the codec test vectors.
-- Do not read passwords or PINs aloud and keep them off the camera.
+- Release APK installed, Wi-Fi on. Firebase Console open on the laptop on the `patients` and `users` collections. Dashboard open on the laptop.
+- Prepared accounts: one admin, one supervisor (email and password), one **new** CHW created minutes before the take whose temporary PIN you can read (Africa's Talking sandbox simulator).
+- Run `flutter analyze` and `flutter test --coverage` the day before. **Say the real numbers.** Do not say "70 percent" unless the report shows it.
+- Rehearse Person 3's offline SMS path. It was not phone-tested on the Firebase build. If it fails, show the online path and say the SMS codec is covered by shared test vectors.
+- Keep PINs, passwords and keys off the camera.
 
 ---
 
-## Person 1 (0:00 to 3:00): Authentication, sign-in and SharedPreferences
+# Part 1: the guide, how the app and dashboards work (Person 4, 0:00 to 5:00)
 
-**Rubric items:** Authentication (5), SharedPreferences (5), action 1, 2, 6, 7. Also states: Riverpod (`Notifier`).
+Speak calmly; about 600 words fits in 5 minutes. Do not introduce anyone.
 
-**On screen:** cold start from a killed app; sign-in screen with the three method chips; a wrong-format PIN; first sign-in with a temporary PIN; forced "choose your own PIN"; log out; log in; Settings; change text size, default visit type and Remember login; swipe the app away; relaunch.
+> **(0:00, cold start)** "This is HealthBridge, an offline-first app for community health workers in Rwanda, with web dashboards for supervisors and admins. The app is closed. [open it] That is a **cold start**. It finds no session and shows sign-in."
+>
+> **(0:20, register)** "Accounts are not self-registered, because health data needs a trusted person to create them. So **registration happens on the admin dashboard**. [laptop] The admin opens Members, New account, and creates a health worker. [Console] The `users` document appears here. The server texts a temporary PIN."
+>
+> **(0:45, sign in)** "On the phone there are **three ways to sign in**: PIN, SMS code, and email with a password. I use the temporary PIN. First a mistake: a three-digit PIN. [show] The form says what is wrong, politely, and sends nothing. Now the right PIN. The app forces me to **choose my own PIN**. [mismatch, then match] Now I **log out**, and **log in** a second way, with email and password. Both methods give the same session."
+>
+> **(1:20, every screen)** "This is the health worker's app. Home has **stat cards**: visited today, due, urgent. [tap each tab] Patients, with search. A patient profile with visit history. Record a visit. Sync status. Settings. [rotate once] In landscape nothing overflows."
+>
+> **(1:50, validation)** "In the visit form I enter a temperature of 99. [show] It says 'Enter 30.0 to 45.0 °C'. Polite, and the range lives in one file."
+>
+> **(2:20, two widgets)** "Now **one state change updating two widgets**. I add a danger sign and send the alert. [point] The Urgent-today stat card and the red alert card both change, because they read the same Riverpod provider."
+>
+> **(2:50, CRUD with the Console)** "Now **CRUD with the Console visible**. I create a patient: [Console] the document appears. I read it in the profile. I edit the village: [Console] it updates. I delete: the app archives it, the document stays with an `archivedAt` field, because the rules forbid hard deletes on health records."
+>
+> **(3:30, SharedPreferences)** "In Settings I set text size to Large, default visit type to Child, and turn Remember login on. [kill app, reopen] All three are still there."
+>
+> **(4:00, dashboards)** "On the **supervisor dashboard**: the alert inbox, a case, Escalate with a note, the CHW list, a CHW's visit history, a patient's profile and history. On the **admin dashboard**: Members with CHW and Supervisor tabs, a member's details with Deactivate and Delete, and Centres with details. They share the same server and rules as the app."
+>
+> **(4:50)** "Now the team explains the code behind this. First [Person 1]."
 
-### Script
+**Cut first if short on time:** the landscape explanation, the centre details, the Forgot-PIN mention.
 
-> **(0:00)** "I am [name]. I did authentication and local preferences. I start with a **cold start**: the app is killed, and I open it now. [tap icon] The splash restores the session, finds nobody signed in, and shows the sign-in screen."
->
-> **(0:20)** "There are **three authentication methods**: phone and PIN, an SMS one-time code, and email with a password. Accounts are not self-registered: an admin creates them and the server texts a **temporary PIN**. So here, 'register' means first sign-in. I type the phone number and the temporary PIN."
->
-> **(0:40)** "First, a **validation error**. I type a three-digit PIN and press Sign in. [show] The form stops me with a polite message before anything is sent. This is `validatePin` in `login_controller.dart`; the form calls the validators, so there is no logic inside the widget."
->
-> **(1:00)** "Now the correct temporary PIN. The app calls our server, which checks an **Argon2 hash** in a server-only collection, counts failed tries, and after **five failures locks the account for 15 minutes**. On success it mints a **Firebase custom token** with **custom claims**: role, health centre and a `mc` must-change flag. Because `mc` is set, the app shows **Choose your own PIN**. I type two different PINs, and it says they differ. Now matching ones. The server clears the flag."
->
-> **(1:35)** "I **log out**, and **log in** again with my new PIN. There is also **Forgot PIN**: the admin approves the request and a **one-time code** with a 30-minute life and 5 tries is sent."
->
-> **(1:55)** "State: sign-in is a Riverpod `Notifier`, `LoginController`. Success sets `sessionProvider`, and the root widget swaps the screen. No `setState` anywhere."
->
-> **(2:10)** "Now **SharedPreferences**. In Settings I save three preferences: text size, default visit type, and Remember login. I set text size to Large, visit type to Child, and switch Remember login on. The screen rescales immediately because the setting is a provider. I now **kill the app** and relaunch. [do it] The text is still Large, the visit type is still Child, and the phone number is pre-filled. That is `SettingsController`, which reads the stored values in `build()` and writes on every change."
->
-> **(2:40)** "Clean architecture: my screens are in `presentation/auth`, the Firebase calls are behind `AuthService` in `core/auth`. Tests: login controller tests and settings tests, all in the 129 passing. Over to [Person 2], who will do the Firestore part."
+---
 
-### Snippets to keep in the report and in your head
+# Part 2: the code, five people, about 2 minutes each
 
-`lib/core/settings/settings.dart`, restore on launch, write on change:
+Each person says **one assignment question** ("be prepared to explain") plus their best code. Keep to the clock.
+
+## Person 1 (5:00 to 7:00): authentication, SharedPreferences, why Riverpod
+
+**Assignment question:** why this state management is appropriate.
+
+> "I did authentication and local preferences. We chose **Riverpod** because state is compile-checked, testable without a `BuildContext`, and rebuilds only the widgets that watch it. We use no `setState`."
+>
+> "[login_controller.dart] Sign-in is one `Notifier`, `LoginController`, with three methods: PIN, SMS code, email. Validators like `validatePin` run in the form, so the screen has no logic. Success sets the session provider and the root widget swaps the screen."
+>
+> "[server auth/routes.ts] The PIN goes to our server, which checks an **Argon2 hash**, counts failures, and **locks the account for 15 minutes after five**. Then it returns a **Firebase custom token** with **custom claims**: role, health centre, and a must-change flag, which is why a new account is forced to choose its own PIN. Forgot PIN uses an **OTP**: 30 minutes, five tries."
+>
+> "[settings.dart] **SharedPreferences**: three preferences, restored in `build()` and saved on every change, which is why they survived the restart."
+
+Snippets (keep on screen or in the report):
 
 ```dart
-class SettingsController extends Notifier<AppSettings> {
-  static const _textSize = 'settings.textSize';
-  static const _visitType = 'settings.defaultVisitType';
-  static const _remember = 'settings.rememberLogin';
-
-  @override
-  AppSettings build() {
-    final p = ref.watch(sharedPreferencesProvider);
-    final remember = p.getBool(_remember) ?? false;
-    return AppSettings(
-      textSize: TextSize.values.asNameMap()[p.getString(_textSize)] ?? TextSize.normal,
-      defaultVisitType: VisitType.values.asNameMap()[p.getString(_visitType)] ?? VisitType.maternal,
-      rememberLogin: remember,
-      savedLoginId: remember ? p.getString('settings.loginId') : null,
-    );
-  }
-
-  Future<void> setTextSize(TextSize size) async {
-    state = _with(textSize: size);              // UI updates at once
-    await _prefs.setString(_textSize, size.name); // then it is saved
-  }
+@override
+AppSettings build() {
+  final p = ref.watch(sharedPreferencesProvider);
+  return AppSettings(
+    textSize: TextSize.values.asNameMap()[p.getString(_textSize)] ?? TextSize.normal,
+    defaultVisitType: VisitType.values.asNameMap()[p.getString(_visitType)] ?? VisitType.maternal,
+    rememberLogin: p.getBool(_remember) ?? false,
+  );
+}
+Future<void> setTextSize(TextSize size) async {
+  state = _with(textSize: size);                // UI updates at once
+  await _prefs.setString(_textSize, size.name); // then saved
 }
 ```
-
-`lib/presentation/auth/login_controller.dart`, three methods, one controller:
-
-```dart
-enum LoginMethod { pin, smsCode, email }
-
-Future<void> submit(String id, String secret) => _run(id, () =>
-    state.method == LoginMethod.email
-        ? _auth.signInWithEmail(id.trim(), secret)
-        : _auth.signInWithPin(normalizePhone(id), secret));
-```
-
-`server/src/auth/routes.ts`, the lockout and the custom token:
 
 ```ts
 if (!(await verify(cred.pinHash, given))) {
@@ -100,52 +110,31 @@ if (!(await verify(cred.pinHash, given))) {
     : { failedLogins: FieldValue.increment(1) });
   throw unauthorized();
 }
-const claims = { role: user.role, hc: user.healthCenterId };
-res.json({ customToken: await fb.auth.createCustomToken(user.id, claims) });
+res.json({ customToken: await fb.auth.createCustomToken(user.id, { role: user.role, hc: user.healthCenterId }) });
 ```
 
-**Terms to say:** Firebase Auth, custom token, custom claims, Argon2, lockout, OTP, `Notifier`, `SharedPreferences`, persisted session, validators.
+Terms: custom token, custom claims, Argon2, lockout, OTP, `Notifier`, `ref.watch`, persisted preferences.
 
----
+## Person 2 (7:00 to 9:00): Firestore CRUD, ERD to Firestore, security rules
 
-## Person 2 (3:00 to 6:00): Patients and visits, Firestore CRUD, ERD and rules
+**Assignment questions:** how the ERD matches the database; how the rules protect data.
 
-**Rubric items:** CRUD (5), Database design ERD to Firestore (10), action 4, action 7 (second validation), Clean Architecture (5).
-
-**On screen:** Patients tab with the Firebase Console `patients` collection visible beside it. Register a patient (create), open the profile (read), edit the village (update), archive (delete). Show each change appear in the Console within seconds. Then enter age "abc" and a temperature of 99.
-
-### Script
-
-> **(3:00)** "I am [name]. I did patients, visits and the data model. I will do **CRUD** with the **Firebase Console open** beside the phone. Here is the `patients` collection."
+> "I did patients, visits and the data model. Our ERD in `docs/ERD.md` has `users`, `healthCenters`, `patients`, `visits` and `alerts`. The Firestore collections match it field for field, in camelCase. A visit stores only `patientId`, never the patient's data, so nothing is duplicated."
 >
-> **(3:20)** "**Create.** I register a patient: name, village, sex, age, and a consent tick. The app saves to the **local encrypted database**, drift on **SQLCipher**, so it works offline. In the same **transaction** it writes an **outbox** row, so a record is never saved without being queued. When the sync engine uploads it, [point to Console] the document appears here, with the same field names as our ERD."
+> "[patients_repository.dart] **Create** writes the patient to the encrypted local database, **drift on SQLCipher**, and an **outbox** row in the same transaction. A record can never be saved without being queued. Sync uploads it, which is what you saw appear in the Console. **Read** is a drift stream, so the list updates live. **Update** re-queues. **Delete** is `archive`: it sets `archivedAt`."
 >
-> **(3:55)** "**Read.** The patients list is a **stream**: `watch()` returns a Drift stream, so the list is live and the search box filters name, short ID or village as I type. I open the profile to read the visit history."
->
-> **(4:20)** "**Update.** I change the village. The UI updates at once, the row is marked queued, and the Console shows the new `updatedAt` and village a moment later."
->
-> **(4:45)** "**Delete.** I archive the patient. Notice I do not hard-delete: our **Firestore rules** say `allow delete: if false`, because health records must be kept. 'Delete' sets `archivedAt`, the patient disappears from every list, and the document stays in the Console with that field. That is a deliberate, safe design."
->
-> **(5:10)** "**Validation.** I enter the age as letters. [show] It says 'Enter the age in whole years (0 to 130)'. Then a temperature of 99: 'Enter 30.0 to 45.0 °C'. These ranges live in `NumberRange` in `validation.dart` and nowhere else. Errors from the repository appear as **snackbars**."
->
-> **(5:30)** "**Database design.** Our ERD in `docs/ERD.md` maps to collections: `users`, `healthCenters`, `patients`, `visits`, `alerts`. Fields are camelCase everywhere. Patient data is not copied into visits; a visit holds only `patientId`. The rules are **owner-limited**: a CHW reads only their own patients, a supervisor reads their own centre's, and the visit rule checks that `isUrgent` equals `dangerSigns.size() > 0`. Over to [Person 3]."
+> "[firestore.rules] Why archive: the rules say `allow delete: if false`. A CHW reads and writes only their own patients; a supervisor reads only their centre's; `chwId`, `healthCenterId`, `shortId` and `createdAt` cannot change after creation; and a visit's `isUrgent` must equal `dangerSigns.size() > 0`, so a client cannot fake urgency. Indexes are in `firestore.indexes.json`."
 
-### Snippets
-
-`lib/data/repositories/patients_repository.dart`, create and outbox in one transaction; archive as an update:
+Snippets:
 
 ```dart
 return _db.transaction(() async {
   final patient = await _db.into(_db.patients).insertReturning(row);
-  await _enqueue(patient);          // outbox row, same transaction
+  await _enqueue(patient);      // outbox row, same transaction
   return patient;
 });
-
-Future<Patient> archive(Patient p) =>
-    update(p.copyWith(archivedAt: Value(_now())));
+Future<Patient> archive(Patient p) => update(p.copyWith(archivedAt: Value(_now())));
 ```
-
-`firestore.rules`, owner-limited, immutable keys, no delete:
 
 ```
 match /patients/{patientId} {
@@ -155,47 +144,23 @@ match /patients/{patientId} {
     && incoming().chwId == uid() && incoming().healthCenterId == hc();
   allow update: if isChw() && existing().chwId == uid() && validPatient()
     && same('chwId') && same('healthCenterId') && same('shortId') && same('createdAt');
-  allow delete: if false; // archive instead (archivedAt)
+  allow delete: if false;
 }
 ```
 
-`lib/data/forms/validation.dart`, one range class, polite message:
+Terms: offline-first, SQLCipher, transaction, outbox, soft delete, `hasOnly`, owner-limited rules, composite index.
 
-```dart
-String? check(num? v) {
-  if (v == null) return 'Required';
-  return contains(v) ? null : 'Enter $min to $max $unit';
-}
-const temperatureC = NumberRange(30, 45, '°C');
-```
+## Person 3 (9:00 to 11:00): urgent alerts, sync and shared state
 
-**Terms:** offline-first, drift, SQLCipher, transaction, outbox queue, soft delete, security rules, `hasOnly`, composite index, normalised data, repository pattern (domain interface in `domain/repositories`, implementation in `data/repositories`).
+**Assignment question:** state management in action across components.
 
----
-
-## Person 3 (6:00 to 9:00): Urgent alerts, offline SMS, sync, and the two-widget state update
-
-**Rubric items:** State Management (10), action 5, Clean Architecture.
-
-**On screen:** record a visit with a danger sign, tap Send urgent alert. Show Home's urgent card and the connection pill, and the Alerts screen, change together. Then airplane mode and send by SMS. Sync screen with a Retry.
-
-### Script
-
-> **(6:00)** "I am [name]. I did urgent alerts and sync. First, the **state-management** requirement: a single state change that updates two widgets. I record a visit with a danger sign and tap **Send urgent alert**."
+> "I did urgent alerts and sync. The Home alert card and the stat card you saw both read one provider, `allDispatchesProvider`, a **StreamProvider** over the local database. When the dispatch state changes, both widgets rebuild from **one source of truth**. The connection pill reads `isOnlineProvider`."
 >
-> **(6:20)** "Watch two places. [point] The red card on Home, and the Alerts screen. Both read the same Riverpod provider, `allDispatchesProvider`, which is a **StreamProvider** over the local database. When the dispatch state moves from sending to confirmed, **both widgets rebuild from one source of truth**, with no manual refresh and no `setState`. The connection pill on Home is a second provider, `isOnlineProvider`, so I can flip it too."
+> "[urgent_dispatcher.dart] `send` tries the internet with a **10-second timeout**. If that fails it falls back to SMS. [codec.dart] The SMS is encrypted with **AES-256-GCM**, with the header as **associated data**, so a message cannot be replayed under another device. The server decrypts it, makes a partial case, and replies with an **HMAC-signed** `HB OK` code. The app ignores acknowledgements whose tag does not match, so only our server can confirm. After 10 minutes with no ack, the card offers Resend and Call."
 >
-> **(6:55)** "How it works: `UrgentDispatcher.send` first tries the internet with a **10-second timeout**. [Console] The visit and alert arrive in Firestore together. If that fails, it falls back to SMS."
->
-> **(7:20)** "Now airplane mode, and send again. [do it] The app builds a compact message with a **codec**, encrypted with **AES-256-GCM**, with the header as **associated data**, so a body cannot be replayed under another device. It sends to the **Africa's Talking** number. The server decrypts it, creates a partial case, and replies with an **HMAC-signed** `HB OK` code. The app ignores any ack whose tag does not match its key, so only our server can confirm. If nothing comes back in **10 minutes**, the card offers **Resend** and **Call**."
->
-> **(8:05)** "When the phone is back online, the full visit syncs and **merges into the same case**, so the supervisor sees one case, not two. The **sync engine** drains the outbox, and the **Sync screen** shows pending items with a Retry button. Background sync runs through **workmanager**."
->
-> **(8:35)** "Architecture: the dispatcher is plain Dart in `lib/urgent`, with a sender interface, so the Android SMS part is swapped in tests. The codec has shared **test vectors** that both Dart and TypeScript must pass, so the two sides stay byte-identical. Over to [Person 4]."
+> "When the phone is back online the full visit uploads and **merges into the same case**. The **sync engine** drains the outbox; **workmanager** runs it in the background."
 
-### Snippets
-
-`lib/urgent/urgent_dispatcher.dart`, internet first, SMS fallback:
+Snippets:
 
 ```dart
 Future<void> send(String visitId) async {
@@ -207,67 +172,31 @@ Future<void> send(String visitId) async {
     await sendSms(visitId);
   }
 }
-```
-
-Signed acknowledgement check:
-
-```dart
 if (parts[1] != await ackTag(device.smsKey, parts[0])) continue; // not from our server
-await acknowledge(parts[0]);
 ```
 
-`lib/presentation/home/home_screen.dart`, one provider, a widget reacting to it:
+Terms: `StreamProvider`, single source of truth, AES-GCM, associated data, HMAC, idempotent merge, outbox, workmanager. Shared test vectors keep the Dart and TypeScript codecs byte-identical.
 
-```dart
-final dispatches = ref.watch(allDispatchesProvider).value ?? const [];
-...
-final alert = switch (state) {
-  DispatchState.confirmed => 'the health centre has the alert',
-  DispatchState.sentSms || DispatchState.unconfirmed => 'alert sent by SMS, not confirmed yet',
-  DispatchState.sending => 'alert is sending',
-  null => 'alert not sent yet',
-};
-```
+## Person 4 (11:00 to 13:00): clean architecture and the supervisor case flow
 
-**Terms:** `StreamProvider`, single source of truth, AES-GCM, associated data, HMAC, partial case merge, idempotent sync, outbox, workmanager, background isolate.
+**Assignment question:** how the code follows clean architecture.
 
----
-
-## Person 4 (9:00 to 12:00): Supervisor flow and navigation
-
-**Rubric items:** Design Match and Navigation (10), action 3, Widgets and UI, State Management.
-
-**On screen:** sign in as a supervisor. Walk the four tabs: Alerts, CHWs, Patients, Profile. Open a case, add a note, change status, show the snackbar. Open a CHW and a patient history. Use back each time. Then briefly the CHW Home stat cards.
-
-### Script
-
-> **(9:00)** "I am [name]. I did the supervisor side. I sign in as a supervisor; the **role claim** in the token decides which app shell I get. The shell is a **bottom navigation** over an **IndexedStack**, so each tab keeps its scroll and state."
+> "Now the code. Our app is in three layers under `lib/`. **Presentation** holds screens, each with a Riverpod controller beside it. **Domain** holds entities, repository interfaces and use cases. **Data** holds the drift database and repositories that implement those interfaces. Screens never talk to Firebase or the database directly; the repository pattern keeps logic out of UI files."
 >
-> **(9:20)** "**Alerts** is the inbox: urgent cases first, with status filters. It is a **StreamProvider.autoDispose** that polls every 10 seconds. I open a case. [show] The detail shows the patient, the danger signs and the history of status events."
+> "[case_screen.dart] The case screen only collects input and shows a snackbar. The work is in `CaseStatusController`: it calls the server, then `ref.invalidate`s the case and the inbox so the UI refreshes at once, and any error comes back as a snackbar message."
 >
-> **(9:50)** "I add a note and press **Escalate**. The status follows a **state machine** called `TRANSITIONS`: new can go to reviewed, escalated, follow-up or resolved; resolved goes nowhere. The check is on the server, inside a Firestore **transaction**, so two supervisors cannot overwrite each other, and each change adds an event to a subcollection. The app shows a **snackbar**, 'Case moved to Escalated', and refreshes the inbox through `ref.invalidate`. The CHW gets an SMS on Escalate."
->
-> **(10:35)** "**CHWs** tab: I tap a CHW and see their visit history; I tap a visit and see its detail. **Patients** tab: search, open a patient, see their profile and full history. In each, **back** returns exactly one level, with no back-stack errors."
->
-> **(11:15)** "Everything is **scoped by health centre on the server**. If I request a CHW from another centre I get a 404, not an empty list. And on the CHW side, the Home screen has **stat cards**: visited today, due for a visit, urgent today. They are computed from three providers, so they change when a visit is saved."
->
-> **(11:45)** "These screens were matched to our Figma file: Outfit font, green and lime palette, 24-pixel cards. Over to [Person 5]."
+> "[server supervisor/routes.ts] The status change is a **state machine**, `TRANSITIONS`. The server re-reads the status inside a Firestore **transaction**, rejects an illegal move, and writes an event to a subcollection, so two supervisors cannot overwrite each other and every change has an author. All supervisor queries are **scoped by health centre on the server**; another centre's CHW returns 404."
 
-### Snippets
-
-`lib/presentation/supervisor/case_screen.dart`, action, snackbar:
+Snippets:
 
 ```dart
 Future<void> _move(AlertStatus to) async {
   final messenger = ScaffoldMessenger.of(context);
-  final error = await ref.read(caseStatusProvider(widget.alertId).notifier)
-      .move(to, _note.text);
+  final error = await ref.read(caseStatusProvider(widget.alertId).notifier).move(to, _note.text);
   if (error == null) _note.clear();
   messenger.showSnackBar(SnackBar(content: Text(error ?? 'Case moved to ${to.label}')));
 }
 ```
-
-`server/src/supervisor/routes.ts`, server-side state machine:
 
 ```ts
 const TRANSITIONS: Record<AlertStatus, AlertStatus[]> = {
@@ -277,51 +206,23 @@ const TRANSITIONS: Record<AlertStatus, AlertStatus[]> = {
   follow_up: ['escalated', 'resolved'],
   resolved: [],
 };
-// inside fs.runTransaction: re-read the status, reject an illegal move, write an events/ doc
 ```
 
-`lib/presentation/home/home_screen.dart`, the stat cards:
+Terms: presentation, domain, data, repository interface, `FutureProvider.family`, `ref.invalidate`, role-based shell with `IndexedStack`, Firestore transaction, tenant scoping.
 
-```dart
-SummaryRow(children: [
-  Expanded(child: SummaryCard(icon: Icons.check, value: visited, label: 'Visited today', ...)),
-  Expanded(child: SummaryCard(icon: Icons.event, value: due.length, label: 'Due for a visit', ...)),
-  Expanded(child: SummaryCard(icon: Icons.warning_amber_rounded, value: urgent.length, label: 'Urgent today', ...)),
-]);
-```
+## Person 5 (13:00 to 14:45): design system, layout tests, quality and GitHub history
 
-**Terms:** role-based shell, `IndexedStack`, `FutureProvider.family`, `ref.invalidate`, state machine, Firestore transaction, optimistic concurrency, tenant scoping, `MaterialPageRoute` back stack.
+**Assignment questions:** how testing validates the app; how GitHub history shows collaboration.
 
----
-
-## Person 5 (12:00 to 15:00): Design system, admin, responsive layout and tests
-
-**Rubric items:** Widgets and UI (5), Design Match (10), Code Quality (5), Testing (5), action 3 (rotate once).
-
-**On screen:** sign in as admin: Resets, New account, Centres, Profile. Approve a reset. Create a member while the Console shows `users`. Open a member, deactivate. Open a centre. Rotate the phone to landscape once, no overflow.
-
-### Script
-
-> **(12:00)** "I am [name]. I did the design system and the admin screens. As admin I get a different shell, from the same `role` claim. **Resets**: I approve a request; the server issues a one-time code. **New account**: I create a CHW. [Console] The `users` document appears; the server texted a temporary PIN, never stored in the document. **Members** has two tabs, CHWs and Supervisors."
+> "I did the design system, the admin screens and testing. [widgets.dart] Every screen uses one set of widgets: `HbButton`, a 56-pixel pill; `HbCard`, 24-pixel corners; chips, avatars, a floating tab bar. Colours are tokens in `HbColors`, with contrast measured: 4.9 to 1 on brand green, 5 to 1 on red, above the 4.5 requirement, and tap targets at least 48 pixels."
 >
-> **(12:40)** "I open a member and **deactivate**. The server does three things: sets `active: false` in Firestore, **disables the Auth user**, and **revokes the refresh tokens**, so the person is locked out at once, not at the next sign-in. **Delete** removes the account, credentials and devices but keeps the patients and visits. An admin account can never be changed through this screen. A centre name opens the centre details."
+> "[layout_test.dart] To prove it works on small and large phones and in landscape, a **widget test** renders every main screen at four sizes: 320 by 568, 430 by 932, landscape, and landscape with extra-large text. Any `RenderFlex` overflow fails the test."
 >
-> **(13:25)** "Now **rotation**. [rotate once] No overflow in landscape. We prove this with **layout tests** at four sizes: 320 by 568, 430 by 932, and two landscape sizes, including **extra-large text**. Any RenderFlex overflow fails the build. So the layout is checked on phones under 5.5 inches and over 6.7."
+> "[terminal] `flutter analyze` reports [say the real result]. `flutter test` runs [say the real number] tests, with [say the real number] percent coverage; the server has its own tests on the Firebase emulators, and the dashboard has its own."
 >
-> **(13:50)** "The widgets come from one **design system**: `HbButton` is a 56-pixel pill, `HbCard` has 24-pixel corners, plus avatar, chip, pill, circle button, floating tab bar, bottom sheet and snackbar. Colours are **tokens** in `HbColors`, and we measured **contrast**: text on brand green is 4.9 to 1 and on red 5 to 1, above the 4.5 requirement. Tap targets are at least 48 pixels."
->
-> **(14:25)** "Quality: `flutter analyze` reports **no issues**, and **129 tests** pass with coverage above 70 percent; server has 48 tests on the Firebase emulators and the dashboard 35. Thank you for watching."
+> "[terminal, `git shortlog -sn`] Our history shows every member's commits and branches over the weeks, and the contribution tracker matches it. On the admin side, deactivating a member disables the Auth user and revokes their tokens, so they are locked out at once. Thank you for watching."
 
-### Snippets
-
-`lib/core/widgets/widgets.dart`, one button for every screen:
-
-```dart
-HbButton(label, onPressed: ..., kind: HbButtonKind.primary)  // 56 dp StadiumBorder,
-// Opacity 0.5 and no tap when onPressed is null
-```
-
-`test/layout_test.dart`, overflow checked at four sizes:
+Snippets:
 
 ```dart
 const _sizes = {
@@ -332,27 +233,30 @@ const _sizes = {
 };
 ```
 
-`server/src/admin/routes.ts`, deactivate cuts access immediately:
-
 ```ts
 await fb.auth.updateUser(id, { disabled: !active });
 if (!active) await fb.auth.revokeRefreshTokens(id);
 await users.doc(id).update({ active });
 ```
 
-**Terms:** design tokens, Material 3 theme (`buildTheme`), contrast ratio (WCAG 4.5:1), tap-target size, `RenderFlex` overflow, responsive layout, widget tests, `ProviderScope` overrides, coverage, custom-claim role guard (`requireRole('admin')`), soft deactivate versus delete.
+Terms: design tokens, Material theme, WCAG contrast 4.5:1, tap target, `RenderFlex`, widget test, unit test, coverage, `ProviderScope` overrides.
 
 ---
 
-## Hand-offs (one sentence each)
+## Hand-offs (one sentence)
 
-1. to 2: "Accounts and settings are in place; [Name] will now show the data side with the Firebase Console."
-2. to 3: "Data is stored and synced; [Name] will show how an urgent alert and shared state work."
-3. to 4: "The alert has reached the centre; [Name] will show what the supervisor does with it."
-4. to 5: "[Name] will finish with the admin side, the design system and the tests."
+- Guide to 1: "Now [Name] explains how sign-in and preferences are built."
+- 1 to 2: "Accounts and settings are covered; [Name] shows the data side."
+- 2 to 3: "Data is stored; [Name] shows how alerts and shared state work."
+- 3 to 4: "The alert has left the phone; [Name] shows how the code is organised and what the supervisor does."
+- 4 to 5: "[Name] closes with the design system and the tests."
 
-## Honest notes
+## Cut first if you run over
 
-- **Rubric versus code snippets:** no slide deck is allowed, so say the file name and term aloud and keep the code for the report.
-- **If you run long:** drop the Forgot PIN sentence (1), the search demo (2), the Resend/Call sentence (3), the CHW stat cards (4), the delete sentence (5).
-- **Web dashboards** are not in the phone rubric. Optional 20 seconds each at the end of your part, only if time remains.
+Guide: Forgot PIN, landscape sentence, centre details. Person 1: the lockout detail. Person 2: indexes. Person 3: Resend and Call. Person 4: tenant scoping. Person 5: the deactivate paragraph.
+
+## Notes
+
+- The dashboards are web pages. The assignment says a web build of the app gets zero, so show them only as a short extra (1 minute, guide only) alongside the phone, never instead of it.
+- Registration here is an admin creating the account, followed by the first sign-in. Say that clearly so the "register" step is not mistaken for missing.
+- No unverified numbers: coverage, analyze result and test counts are said from a run done on the day.
