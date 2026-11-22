@@ -2,7 +2,18 @@
 
 Offline-first Android app for community health workers (CHWs), their supervisors and an admin, on Firebase
 (Cloud Firestore + Firebase Auth), with a small Express server for what an app must not do and an encrypted
-SMS fallback for urgent alerts. The specs are in [documents/](documents/).
+SMS fallback for urgent alerts. The specs are in [documents/](documents/). What the whole project does and how it
+fits together is in [PRODUCT.md](PRODUCT.md) (with the split of the code among five people); the scripts for the
+demo video are in [docs/VIDEO_SCRIPTS.md](docs/VIDEO_SCRIPTS.md).
+
+The look is one design system: Outfit font, brand green `#19695A` with lime `#D4FF89`, 24 px cards, 56 px pill
+buttons and a floating tab bar (`lib/core/theme/app_theme.dart`, `lib/core/widgets/`). The web dashboard uses the
+same tokens.
+
+## Screenshots
+
+<!-- TODO: add screenshots here (docs/screenshots/*.png): sign-in, CHW home with the stat cards, patient
+profile, urgent alert, supervisor inbox and case, CHW and patient history, admin Members, web dashboard. -->
 
 ## Layout
 
@@ -12,7 +23,7 @@ SMS fallback for urgent alerts. The specs are in [documents/](documents/).
 | `firestore.rules`, `firestore.indexes.json` | Firestore security rules and indexes (deployed to project `healthbridge-rwanda`). |
 | `docs/ERD.md` | Entity-relationship diagram of the Firestore collections. |
 | `server/` | Express + TypeScript on the Firebase Admin SDK: PIN sign-in, accounts and resets, device keys, the SMS gateway, alert status changes. Tested with Vitest against the Firebase emulators. |
-| `dashboard/` | Supervisor web dashboard (Next.js), signing in with Firebase. |
+| `dashboard/` | Web dashboard (Next.js), signing in with Firebase: supervisors get alerts, CHWs and patients with their visit history; admins get Resets, Members (CHW and Supervisor tabs, deactivate and delete) and Centres. |
 | `android/` | Flavours `store` (no SMS permission, opens the SMS composer) and `managed` (sends SMS itself through the Kotlin channel in `app/src/managed/kotlin/`). `app/google-services.json` is the app's public Firebase config. |
 | `shared/sms-vectors.json` | Test vectors both SMS codecs (TypeScript and Dart) must pass. |
 
@@ -38,9 +49,17 @@ SMS fallback for urgent alerts. The specs are in [documents/](documents/).
   an encrypted SMS (AES-GCM, the device's own key) to the Africa's Talking number; the server decrypts it, stores a
   partial case and replies `HB OK <code> <tag>` (HMAC-signed, so only the server can confirm). When the phone is
   back online it uploads the full visit and the server merges the two into one case.
-- **Supervisors** see their health centre's alerts (inbox, case detail, status changes with a note, CHW list) in
-  the app or on the web dashboard. Status changes go through the server, which checks the allowed moves, records
-  who made them and texts the CHW on Escalate and Follow-up.
+- **Supervisors** see their health centre's alerts (inbox, case detail, status changes with a note), their CHWs
+  and patients in the app or on the web dashboard. Tapping a CHW shows every visit that CHW recorded; tapping a
+  patient shows their profile and visit history; a visit opens its full detail. Status changes go through the
+  server, which checks the allowed moves, records who made them and texts the CHW on Escalate and Follow-up.
+  Everything is scoped to the supervisor's own centre on the server.
+- **CHW home** shows stat cards (visited today, due for a visit, urgent today), today's due patients and visits,
+  and a pill for the connection and what is still waiting to upload.
+- **Admins** (app and web) approve resets, create accounts, and manage Members in two tabs (CHWs, Supervisors):
+  open a member to see their details, deactivate them (Firestore `active:false`, Auth user disabled, tokens
+  revoked, so they are out at once) or delete them (account, credentials and devices go; patients and visits are
+  kept). A health centre's name opens its details. Admin accounts are never touched from these screens.
 - **Security rules** (`firestore.rules`): a CHW reads and writes only their own patients and visits (field by
   field validation; a visit is urgent exactly when it has danger signs), a supervisor reads only their centre's,
   nothing can be deleted (archive instead), and PIN hashes, device keys, reset requests and logs are server-only.
@@ -54,8 +73,9 @@ SMS fallback for urgent alerts. The specs are in [documents/](documents/).
 | CHW app: patients (create, edit, archive), visits, sync to Firestore, settings | done, tested on a phone |
 | Urgent alert by internet; supervisor inbox, escalate with note; admin new account and reset approval | done, tested on a phone |
 | Offline SMS alert and merge on Firebase | code and server tests done; last phone run was on the Postgres version (1 Nov) |
-| Web dashboard on Firebase sign-in | done, tested by unit tests only |
-| Tests | 127 Flutter (unit, widget, layout at 3 screen sizes), 43 server (Firebase emulators), 32 dashboard |
+| Redesign (Outfit, green and lime), history screens, admin Members and centre details, CHW stat cards | done, installed on a phone; the newest screens are covered by tests, not yet by a full phone run |
+| Web dashboard on Firebase sign-in (supervisor and admin) | done, tested by unit tests only |
+| Tests | 129 Flutter (unit, widget, layout at 4 sizes: 320x568, 430x932, landscape, landscape with extra-large text), 48 server (Firebase emulators), 35 dashboard |
 
 ## Phone tests
 
