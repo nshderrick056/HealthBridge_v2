@@ -46,6 +46,8 @@ The guide (Person 4) speaks twice: the 5-minute tour, then their own 2 minutes o
 
 Speak calmly; about 600 words fits in 5 minutes. Do not introduce anyone.
 
+A step-by-step version of this tour, with what to do, what to say, and what to point at in the Firebase Console, is in [DEMO_TOUR_SCRIPT.md](DEMO_TOUR_SCRIPT.md).
+
 > **(0:00, cold start)** "This is HealthBridge, an offline-first app for community health workers in Rwanda, with web dashboards for supervisors and admins. The app is closed. [open it] That is a **cold start**. It finds no session and shows sign-in."
 >
 > **(0:20, register)** "Accounts are not self-registered, because health data needs a trusted person to create them. So **registration happens on the admin dashboard**. [laptop] The admin opens Members, New account, and creates a health worker. [Console] The `users` document appears here. The server texts a temporary PIN."
