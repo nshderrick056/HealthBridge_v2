@@ -10,11 +10,26 @@ import 'package:health_bridge/core/settings/settings.dart';
 import 'package:health_bridge/data/db.dart';
 import 'package:health_bridge/data/models.dart';
 import 'package:health_bridge/data/providers.dart';
+import 'package:health_bridge/presentation/auth/change_secret_controller.dart';
 import 'package:health_bridge/presentation/auth/login_controller.dart';
 import 'package:health_bridge/presentation/patients/patients_controller.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// Fails with an error that is not an AuthException, like a token refresh refused by Firebase.
+class _FailingChangeAuth extends AuthService {
+  _FailingChangeAuth()
+    : super(
+        baseUrl: 'http://api.test',
+        auth: MockFirebaseAuth(),
+        client: MockClient((_) async => http.Response('{}', 200)),
+      );
+
+  @override
+  Future<Session> changeOwn({String? pin, String? password}) =>
+      Future.error(Exception('token refused'));
+}
 
 void main() {
   setUp(() {
@@ -160,6 +175,19 @@ void main() {
       },
     );
   });
+
+  test(
+    'an unexpected error while saving new details ends the busy state',
+    () async {
+      final c = await container(auth: _FailingChangeAuth());
+      c.listen(changeSecretProvider, (_, _) {});
+      await c.read(changeSecretProvider.notifier).save(pin: '2468');
+
+      final s = c.read(changeSecretProvider);
+      expect(s.busy, isFalse);
+      expect(s.error, isNotNull);
+    },
+  );
 
   test('the patients search and filter keep each other', () async {
     final c = await container();

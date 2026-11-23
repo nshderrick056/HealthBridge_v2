@@ -23,6 +23,13 @@ class ChangeSecretController extends Notifier<ChangeSecretState> {
       ref.read(sessionProvider.notifier).state = session;
     } on AuthException catch (e) {
       if (ref.mounted) state = ChangeSecretState(error: e.message);
+    } on Exception {
+      // Anything unexpected must still end the "Please wait..." state.
+      if (ref.mounted) {
+        state = const ChangeSecretState(
+          error: 'Could not save. Check your connection and try again.',
+        );
+      }
     }
   }
 

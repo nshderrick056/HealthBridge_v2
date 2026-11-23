@@ -225,6 +225,12 @@ class AuthService {
         'Could not save. Check your connection and try again.',
       );
     }
+    // Setting a new password ends the session that was signed in with the old one, so a token refresh
+    // would fail; sign in again with the new password instead.
+    final email = user.email;
+    if (password != null && email != null) {
+      return signInWithEmail(email, password);
+    }
     return _session(user, forceRefresh: true);
   }
 
