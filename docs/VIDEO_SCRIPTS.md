@@ -447,6 +447,8 @@ Terms: presentation, domain, data, repository interface, `FutureProvider.family`
 
 **Assignment questions:** how testing validates the app; how GitHub history shows collaboration.
 
+A snippet-by-snippet version of this section, with timings, is in [PERSON5_SCRIPT.md](PERSON5_SCRIPT.md).
+
 > "I did the design system, the admin screens and testing. [widgets.dart] Every screen uses one set of widgets: `HbButton`, a 56-pixel pill; `HbCard`, 24-pixel corners; chips, avatars, a floating tab bar. Colours are tokens in `HbColors`, with contrast measured: 4.9 to 1 on brand green, 5 to 1 on red, above the 4.5 requirement, and tap targets at least 48 pixels."
 >
 > "[layout_test.dart] To prove it works on small and large phones and in landscape, a **widget test** renders every main screen at four sizes: 320 by 568, 430 by 932, landscape, and landscape with extra-large text. Any `RenderFlex` overflow fails the test."
