@@ -2,6 +2,8 @@
 
 One continuous recording, 1080p, no cuts, no speed-ups, no slide deck, no team introductions. The release APK runs on a physical phone. The assignment also asks that every member presents an aspect, and that the video shows both sign-in methods, CRUD with the Firebase Console visible, and the app on a real device.
 
+All paths are from the project root (`HealthBridge_v2/`). **Line numbers were read from the code on branch `feat/redesign` at commit `fa712c6`.** If you edit a file before recording, re-check them (open the file and search for the symbol named in the table).
+
 ## Structure
 
 | Time | Who | What |
@@ -16,7 +18,7 @@ One continuous recording, 1080p, no cuts, no speed-ups, no slide deck, no team i
 
 The guide (Person 4) speaks twice: the 5-minute tour, then their own 2 minutes of code. The other four speak once, for 2 minutes. If you run short or long, the "cut first" list at the bottom says what to drop.
 
-**How code is shown without a slide deck:** keep the laptop on the same table. Each person opens the named file in the editor (large font) and points the phone camera or a second camera at the screen, or the recording captures the laptop screen. Say the file name and the term aloud. If the lecturer does not allow showing code at all, speak the same script from the "say" lines and keep the snippets for the report.
+**How code is shown without a slide deck:** keep the laptop on the same table. Each person opens the named file in the editor (large font), jumps to the line numbers in their table (Ctrl+G in VS Code), and the recording captures the screen or a second camera points at it. Say the file name and the term aloud. If the lecturer does not allow showing code at all, speak the same script and keep the snippets for the report.
 
 ## The 7 required actions (all inside the guide's 5 minutes)
 
@@ -70,7 +72,7 @@ Speak calmly; about 600 words fits in 5 minutes. Do not introduce anyone.
 
 # Part 2: the code, five people, about 2 minutes each
 
-Each person says **one assignment question** ("be prepared to explain") plus their best code. Keep to the clock.
+Each person says **one assignment question** ("be prepared to explain") plus their best code. Keep to the clock. Each table below lists every file you present, the line range to open, and what to point at.
 
 ## Person 1 (5:00 to 7:00): authentication, SharedPreferences, why Riverpod
 
@@ -80,40 +82,103 @@ Each person says **one assignment question** ("be prepared to explain") plus the
 >
 > "[login_controller.dart] Sign-in is one `Notifier`, `LoginController`, with three methods: PIN, SMS code, email. Validators like `validatePin` run in the form, so the screen has no logic. Success sets the session provider and the root widget swaps the screen."
 >
-> "[server auth/routes.ts] The PIN goes to our server, which checks an **Argon2 hash**, counts failures, and **locks the account for 15 minutes after five**. Then it returns a **Firebase custom token** with **custom claims**: role, health centre, and a must-change flag, which is why a new account is forced to choose its own PIN. Forgot PIN uses an **OTP**: 30 minutes, five tries."
+> "[server auth/routes.ts] The PIN goes to our server, which checks an **Argon2 hash**, counts failures, and **locks the account for 15 minutes after five**. Then it returns a **Firebase custom token** with **custom claims**: role and health centre. A new account is also flagged to choose its own PIN first. Forgot PIN uses an **OTP**: 30 minutes, five tries."
 >
 > "[settings.dart] **SharedPreferences**: three preferences, restored in `build()` and saved on every change, which is why they survived the restart."
 
-Snippets (keep on screen or in the report):
+### Files and lines
+
+| File | Lines | Point at |
+|---|---|---|
+| `lib/presentation/auth/login_controller.dart` | 9 | `enum LoginMethod { pin, smsCode, email }`: the three methods |
+| | 43-57 | `LoginController extends Notifier<LoginState>` and `submit` |
+| | 125-127, 141-143 | `validatePin`, `validatePassword`: the polite messages |
+| `lib/core/settings/settings.dart` | 41-63 | `SettingsController` and `build()`: restore on launch |
+| | 77-80 | `setTextSize`: state first, then saved |
+| | 103-105 | `settingsProvider` |
+| `server/src/auth/routes.ts` | 19 | `MAX_FAILED_LOGINS = 5` |
+| | 42-66 | `POST /pin`: lockout and custom token |
+
+### Snippets
+
+`lib/presentation/auth/login_controller.dart`, lines 43-57:
 
 ```dart
-@override
-AppSettings build() {
-  final p = ref.watch(sharedPreferencesProvider);
-  return AppSettings(
-    textSize: TextSize.values.asNameMap()[p.getString(_textSize)] ?? TextSize.normal,
-    defaultVisitType: VisitType.values.asNameMap()[p.getString(_visitType)] ?? VisitType.maternal,
-    rememberLogin: p.getBool(_remember) ?? false,
+class LoginController extends Notifier<LoginState> {
+  @override
+  LoginState build() => const LoginState();
+
+  AuthService get _auth => ref.read(authServiceProvider);
+
+  void choose(LoginMethod method) => state = LoginState(method: method);
+
+  /// Phone + PIN, or email + password.
+  Future<void> submit(String id, String secret) => _run(
+    id,
+    () => state.method == LoginMethod.email
+        ? _auth.signInWithEmail(id.trim(), secret)
+        : _auth.signInWithPin(normalizePhone(id), secret),
   );
-}
-Future<void> setTextSize(TextSize size) async {
-  state = _with(textSize: size);                // UI updates at once
-  await _prefs.setString(_textSize, size.name); // then saved
-}
 ```
+
+`lib/presentation/auth/login_controller.dart`, lines 125-127 and 141-143:
+
+```dart
+String? validatePin(String? v) =>
+    requiredField(v) ??
+    (RegExp(r'^\d{4,6}$').hasMatch(v!.trim()) ? null : 'PIN is 4 to 6 digits');
+
+String? validatePassword(String? v) =>
+    requiredField(v) ??
+    (v!.length >= 8 ? null : 'Password is at least 8 characters');
+```
+
+`lib/core/settings/settings.dart`, lines 49-63 and 77-80:
+
+```dart
+  @override
+  AppSettings build() {
+    final p = ref.watch(sharedPreferencesProvider);
+    final remember = p.getBool(_remember) ?? false;
+    return AppSettings(
+      textSize:
+          TextSize.values.asNameMap()[p.getString(_textSize)] ??
+          TextSize.normal,
+      defaultVisitType:
+          VisitType.values.asNameMap()[p.getString(_visitType)] ??
+          VisitType.maternal,
+      rememberLogin: remember,
+      savedLoginId: remember ? p.getString(_loginId) : null,
+    );
+  }
+
+  Future<void> setTextSize(TextSize size) async {
+    state = _with(textSize: size);
+    await _prefs.setString(_textSize, size.name);
+  }
+```
+
+`server/src/auth/routes.ts`, lines 51-65:
 
 ```ts
-if (!(await verify(cred.pinHash, given))) {
-  const locks = (cred.failedLogins ?? 0) + 1 >= MAX_FAILED_LOGINS;
-  await credRef.update(locks
-    ? { failedLogins: 0, lockedUntil: Timestamp.fromMillis(Date.now() + LOCK_MS) }
-    : { failedLogins: FieldValue.increment(1) });
-  throw unauthorized();
-}
-res.json({ customToken: await fb.auth.createCustomToken(user.id, { role: user.role, hc: user.healthCenterId }) });
+    if (cred.lockedUntil && (cred.lockedUntil as Timestamp).toMillis() > Date.now()) {
+      throw new HttpError(429, 'too_many_attempts');
+    }
+    if (!(await verify(cred.pinHash, given))) {
+      const locks = (cred.failedLogins ?? 0) + 1 >= MAX_FAILED_LOGINS;
+      await credRef.update(
+        locks
+          ? { failedLogins: 0, lockedUntil: Timestamp.fromMillis(Date.now() + LOCK_MS) }
+          : { failedLogins: FieldValue.increment(1) },
+      );
+      throw unauthorized();
+    }
+    if (cred.failedLogins || cred.lockedUntil) await credRef.update({ failedLogins: 0, lockedUntil: null });
+    const claims = { role: user.role, hc: user.healthCenterId };
+    res.json({ customToken: await fb.auth.createCustomToken(user.id, claims) });
 ```
 
-Terms: custom token, custom claims, Argon2, lockout, OTP, `Notifier`, `ref.watch`, persisted preferences.
+Terms: custom token, custom claims, Argon2, lockout (429), OTP, `Notifier`, `ref.watch`, persisted preferences.
 
 ## Person 2 (7:00 to 9:00): Firestore CRUD, ERD to Firestore, security rules
 
@@ -125,30 +190,81 @@ Terms: custom token, custom claims, Argon2, lockout, OTP, `Notifier`, `ref.watch
 >
 > "[firestore.rules] Why archive: the rules say `allow delete: if false`. A CHW reads and writes only their own patients; a supervisor reads only their centre's; `chwId`, `healthCenterId`, `shortId` and `createdAt` cannot change after creation; and a visit's `isUrgent` must equal `dangerSigns.size() > 0`, so a client cannot fake urgency. Indexes are in `firestore.indexes.json`."
 
-Snippets:
+### Files and lines
+
+| File | Lines | Point at |
+|---|---|---|
+| `docs/ERD.md` | whole file | the entities and their fields; compare with the Console |
+| `lib/domain/repositories/patient_repository.dart` | 7 | `abstract interface class PatientRepository`: the domain interface |
+| `lib/data/repositories/patients_repository.dart` | 21 | `create(...)` |
+| | 32-49 | `_db.transaction`: patient row plus `_enqueue` |
+| | 54 | `update` (re-queues) |
+| | 65 | `archive`: sets `archivedAt` |
+| | 79 | `watch`: the live stream with search |
+| | 91 | `_enqueue`: the outbox row |
+| `firestore.rules` | 76-85 | `match /patients`: read, create, update, `allow delete: if false` |
+| | 89-106 | `validVisit`, especially 101 (`isUrgent` rule) |
+| `firestore.indexes.json` | 2 | `"indexes"` |
+| `lib/data/forms/validation.dart` | 3-16 | `NumberRange` and `check` |
+| | 18 | `temperatureC = NumberRange(30, 45, ...)` |
+
+### Snippets
+
+`lib/data/repositories/patients_repository.dart`, lines 32, 46-49 (the transaction) and 65-67:
 
 ```dart
-return _db.transaction(() async {
-  final patient = await _db.into(_db.patients).insertReturning(row);
-  await _enqueue(patient);      // outbox row, same transaction
-  return patient;
-});
-Future<Patient> archive(Patient p) => update(p.copyWith(archivedAt: Value(_now())));
+    return _db.transaction(() async {
+      final row = PatientsCompanion.insert(/* ...fields... */ syncState: const Value(SyncState.queued));
+      final patient = await _db.into(_db.patients).insertReturning(row);
+      await _enqueue(patient);
+      return patient;
+    });
+
+  /// The app's "delete": hides the patient everywhere but keeps the record, and syncs like an edit.
+  @override
+  Future<Patient> archive(Patient p) =>
+      update(p.copyWith(archivedAt: Value(_now())));
 ```
 
+`firestore.rules`, lines 76-85:
+
 ```
-match /patients/{patientId} {
-  allow read: if (isChw() && existing().chwId == uid())
-    || (isSupervisor() && existing().healthCenterId == hc());
-  allow create: if isChw() && validPatient()
-    && incoming().chwId == uid() && incoming().healthCenterId == hc();
-  allow update: if isChw() && existing().chwId == uid() && validPatient()
-    && same('chwId') && same('healthCenterId') && same('shortId') && same('createdAt');
-  allow delete: if false;
+    match /patients/{patientId} {
+      allow read: if (isChw() && existing().chwId == uid())
+        || (isSupervisor() && existing().healthCenterId == hc());
+      allow create: if isChw() && validPatient()
+        && incoming().chwId == uid() && incoming().healthCenterId == hc();
+      // Edits and archiving; owner, centre, short ID and creation time never change.
+      allow update: if isChw() && existing().chwId == uid() && validPatient()
+        && same('chwId') && same('healthCenterId') && same('shortId') && same('createdAt');
+      allow delete: if false; // archive instead (archivedAt); health records are kept
+    }
+```
+
+`firestore.rules`, lines 100-101:
+
+```
+        // Urgent exactly when a danger sign is ticked, so the app cannot get the two out of step.
+        && v.isUrgent == (v.dangerSigns.size() > 0)
+```
+
+`lib/data/forms/validation.dart`, lines 3-18:
+
+```dart
+class NumberRange {
+  const NumberRange(this.min, this.max, this.unit);
+  // ...
+  /// Null when [v] is valid, otherwise a message naming the allowed range.
+  String? check(num? v) {
+    if (v == null) return 'Required';
+    return contains(v) ? null : 'Enter $min to $max $unit';
+  }
 }
+
+const temperatureC = NumberRange(30, 45, '°C');
 ```
 
-Terms: offline-first, SQLCipher, transaction, outbox, soft delete, `hasOnly`, owner-limited rules, composite index.
+Terms: offline-first, SQLCipher, transaction, outbox, soft delete, `hasOnly`, owner-limited rules, composite index, repository interface (domain) and implementation (data).
 
 ## Person 3 (9:00 to 11:00): urgent alerts, sync and shared state
 
@@ -160,22 +276,79 @@ Terms: offline-first, SQLCipher, transaction, outbox, soft delete, `hasOnly`, ow
 >
 > "When the phone is back online the full visit uploads and **merges into the same case**. The **sync engine** drains the outbox; **workmanager** runs it in the background."
 
-Snippets:
+### Files and lines
+
+| File | Lines | Point at |
+|---|---|---|
+| `lib/presentation/home/home_screen.dart` | 30-33 | `ref.watch(isOnlineProvider)` and `ref.watch(allDispatchesProvider)` |
+| | 91-122 | `SummaryRow` of the three stat cards (urgent count comes from line 47) |
+| | 199-222 | `_UrgentCard` and the `switch (state)` on `DispatchState` |
+| `lib/urgent/urgent_dispatcher.dart` | 67-77 | `send`: internet with timeout, SMS fallback |
+| | 79-102 | `sendSms`: `seal(...)` then `sender.send` |
+| | 104 | `expire`: the 10-minute rule |
+| | 113-124 | `applyAcks`, with the tag check on line 121 |
+| `lib/core/sms/codec.dart` | 1-8 | header comment: AES-256-GCM, header as associated data |
+| | 30 | `AesGcm.with256bits()` |
+| | 109 | `seal(...)` |
+| | 214-226 | `ackTag`: the HMAC |
+| `lib/sync/sync_engine.dart` | 46, 78 | `class SyncEngine`, `run()` |
+
+### Snippets
+
+`lib/presentation/home/home_screen.dart`, lines 30-33 and 214-220:
 
 ```dart
-Future<void> send(String visitId) async {
-  await _repo.start(visitId);
-  try {
-    await _postAlert(visitId).timeout(internetTimeout);   // 10 s
-    await _repo.updateState(visitId, DispatchState.confirmed);
-  } on Exception {
-    await sendSms(visitId);
-  }
-}
-if (parts[1] != await ackTag(device.smsKey, parts[0])) continue; // not from our server
+    final online = ref.watch(isOnlineProvider);
+    final patients = ref.watch(allPatientsProvider).value ?? const [];
+    final visits = ref.watch(allVisitsProvider).value ?? const [];
+    final dispatches = ref.watch(allDispatchesProvider).value ?? const [];
+
+    final alert = switch (state) {
+      DispatchState.confirmed => 'the health centre has the alert',
+      DispatchState.sentSms ||
+      DispatchState.unconfirmed => 'alert sent by SMS, not confirmed yet',
+      DispatchState.sending => 'alert is sending',
+      null => 'alert not sent yet',
+    };
 ```
 
-Terms: `StreamProvider`, single source of truth, AES-GCM, associated data, HMAC, idempotent merge, outbox, workmanager. Shared test vectors keep the Dart and TypeScript codecs byte-identical.
+`lib/urgent/urgent_dispatcher.dart`, lines 67-77 and 119-122:
+
+```dart
+  Future<void> send(String visitId) async {
+    await _repo.start(visitId);
+    try {
+      await _postAlert(visitId).timeout(internetTimeout);
+      await _repo.updateState(visitId, DispatchState.confirmed);
+    } on Exception {
+      await sendSms(visitId);
+    }
+  }
+
+      final parts = ack.split(' ');
+      if (parts.length != 2) continue; // unsigned or malformed
+      if (parts[1] != await ackTag(device.smsKey, parts[0])) continue;
+      await acknowledge(parts[0]);
+```
+
+`lib/core/sms/codec.dart`, lines 214-226:
+
+```dart
+/// The tag the server puts on an acknowledgement, `HB OK <code> <tag>`: the first 12 hex of
+/// HMAC-SHA256 over "HB OK <code>" with the device's SMS key. Only a reply carrying the right tag
+/// confirms an alert, so a stranger who learns a short code cannot fake one.
+Future<String> ackTag(List<int> key, String shortCode) async {
+  final mac = await Hmac.sha256().calculateMac(
+    utf8.encode('HB OK $shortCode'),
+    secretKey: SecretKey(key),
+  );
+  return mac.bytes
+      .take(6)
+      .map((b) => b.toRadixString(16).padLeft(2, '0'))
+      .join();
+```
+
+Terms: `StreamProvider`, single source of truth, AES-GCM, associated data, HMAC, idempotent merge, outbox, workmanager. Shared test vectors (`shared/sms-vectors.json`) keep the Dart and TypeScript codecs byte-identical.
 
 ## Person 4 (11:00 to 13:00): clean architecture and the supervisor case flow
 
@@ -187,28 +360,88 @@ Terms: `StreamProvider`, single source of truth, AES-GCM, associated data, HMAC,
 >
 > "[server supervisor/routes.ts] The status change is a **state machine**, `TRANSITIONS`. The server re-reads the status inside a Firestore **transaction**, rejects an illegal move, and writes an event to a subcollection, so two supervisors cannot overwrite each other and every change has an author. All supervisor queries are **scoped by health centre on the server**; another centre's CHW returns 404."
 
-Snippets:
+### Files and lines
+
+| File | Lines | Point at |
+|---|---|---|
+| folders | `lib/presentation/`, `lib/domain/` (entities, repositories, usecases), `lib/data/` | the three layers, in the editor's file tree |
+| `lib/presentation/shell/role_shells.dart` | 42 | `IndexedStack(index: index, children: pages)`: the tabs keep their state |
+| `lib/presentation/supervisor/case_screen.dart` | 33-42 | `_move`: input, snackbar |
+| `lib/presentation/supervisor/supervisor_controllers.dart` | 19-28 | `inboxProvider`: a `StreamProvider.autoDispose` polling every 10 s |
+| | 30-32 | `caseProvider`: `FutureProvider.autoDispose.family` |
+| | 39-64 | `CaseStatusController.move`, with `ref.invalidate` on lines 54-55 |
+| `server/src/supervisor/routes.ts` | 19-26 | `TRANSITIONS` |
+| | 194-224 | `PATCH /alerts/:id`, transaction on 200-213 |
+
+### Snippets
+
+`lib/presentation/supervisor/case_screen.dart`, lines 33-42:
 
 ```dart
-Future<void> _move(AlertStatus to) async {
-  final messenger = ScaffoldMessenger.of(context);
-  final error = await ref.read(caseStatusProvider(widget.alertId).notifier).move(to, _note.text);
-  if (error == null) _note.clear();
-  messenger.showSnackBar(SnackBar(content: Text(error ?? 'Case moved to ${to.label}')));
-}
+  Future<void> _move(AlertStatus to) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await ref
+        .read(caseStatusProvider(widget.alertId).notifier)
+        .move(to, _note.text);
+    if (error == null) _note.clear();
+    messenger.showSnackBar(
+      SnackBar(content: Text(error ?? 'Case moved to ${to.label}')),
+    );
+  }
 ```
 
+`lib/presentation/supervisor/supervisor_controllers.dart`, lines 48-64:
+
+```dart
+  Future<String?> move(AlertStatus to, String note) async {
+    state = true;
+    try {
+      await ref
+          .read(supervisionRepositoryProvider)
+          .setStatus(alertId, to, note: note);
+      ref.invalidate(caseProvider(alertId));
+      ref.invalidate(inboxProvider);
+      return null;
+    } on Exception catch (e) {
+      return e.toString().contains('invalid_transition')
+          ? 'Someone else changed this case. It has been refreshed.'
+          : 'Could not save. Check your connection and try again.';
+    } finally {
+      if (ref.mounted) state = false;
+    }
+  }
+```
+
+`server/src/supervisor/routes.ts`, lines 19-26 and 199-213:
+
 ```ts
-const TRANSITIONS: Record<AlertStatus, AlertStatus[]> = {
+// Where a case can go next. 'new' is only ever the starting state, and a resolved case stays closed.
+export const TRANSITIONS: Record<Status, Status[]> = {
   new: ['reviewed', 'escalated', 'follow_up', 'resolved'],
   reviewed: ['escalated', 'follow_up', 'resolved'],
   escalated: ['follow_up', 'resolved'],
   follow_up: ['escalated', 'resolved'],
   resolved: [],
 };
+
+    const eventRef = ref.collection('events').doc();
+    const from = await fs.runTransaction(async (tx) => {
+      // Re-read inside the transaction: if another supervisor got there first, the transition is re-checked.
+      const current = (await tx.get(ref)).data()!.status as Status;
+      if (!TRANSITIONS[current].includes(status)) throw new HttpError(409, 'invalid_transition');
+      tx.update(ref, { status });
+      tx.create(eventRef, {
+        actorId: uid,
+        fromStatus: current,
+        toStatus: status,
+        note: note || null,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return current;
+    });
 ```
 
-Terms: presentation, domain, data, repository interface, `FutureProvider.family`, `ref.invalidate`, role-based shell with `IndexedStack`, Firestore transaction, tenant scoping.
+Terms: presentation, domain, data, repository interface, `FutureProvider.family`, `ref.invalidate`, role-based shell with `IndexedStack`, Firestore transaction, tenant scoping, HTTP 409.
 
 ## Person 5 (13:00 to 14:45): design system, layout tests, quality and GitHub history
 
@@ -222,9 +455,61 @@ Terms: presentation, domain, data, repository interface, `FutureProvider.family`
 >
 > "[terminal, `git shortlog -sn`] Our history shows every member's commits and branches over the weeks, and the contribution tracker matches it. On the admin side, deactivating a member disables the Auth user and revokes their tokens, so they are locked out at once. Thank you for watching."
 
-Snippets:
+### Files and lines
+
+| File | Lines | Point at |
+|---|---|---|
+| `lib/core/widgets/widgets.dart` | 6 | `class HbCard` (24 px corners) |
+| | 84-143 | `HbButton`: four kinds, 56 px high (line 112), `StadiumBorder` (115), 50% opacity when disabled (109) |
+| `lib/core/theme/app_theme.dart` | 5-28 | `HbColors`; contrast comments on lines 17, 21, 25 |
+| | 126 | `buildTheme()` |
+| `test/layout_test.dart` | 24-31 | the four sizes in `_sizes` |
+| `server/src/admin/routes.ts` | 25 | `router.use(requireUser(fb), requireRole('admin'))` |
+| | 120-129 | `PATCH /users/:id`: deactivate |
+| terminal | | `flutter analyze`, `flutter test --coverage`, `git shortlog -sn` |
+
+### Snippets
+
+`lib/core/widgets/widgets.dart`, lines 100-122 (abridged):
 
 ```dart
+    final (bg, fg) = switch (_kind) {
+      _ButtonKind.primary => (HbColors.ink, Colors.white),
+      _ButtonKind.secondary => (HbColors.white, HbColors.ink),
+      _ButtonKind.danger => (HbColors.red, Colors.white),
+      _ButtonKind.light => (HbColors.white, HbColors.ink),
+    };
+    final enabled = onPressed != null;
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: Material(
+          color: bg,
+          shape: StadiumBorder(/* ... */),
+```
+
+`lib/core/theme/app_theme.dart`, lines 17-26:
+
+```dart
+  /// Input and checkbox edges: 3.3:1 on the canvas, the minimum for a control's boundary.
+  static const edge = Color(0xFF7E8A85);
+  static const chevron = Color(0xFFB5BEBA);
+
+  /// Secondary text on brand green (4.9:1).
+  static const onBrand = Color(0xFFD7EAE3);
+  static const red = Color(0xFFB3261E);
+
+  /// Secondary text on the red (5:1).
+  static const onRed = Color(0xFFFFE3E0);
+```
+
+`test/layout_test.dart`, lines 24-31:
+
+```dart
+// (size, text scale): 0.55 brings the wide test font (Ahem) close to Inter; 0.72 is that times the
+// Settings screen's "Extra large" (1.3).
 const _sizes = {
   'small phone (320x568)': (Size(320, 568), 0.55),
   'large phone (430x932)': (Size(430, 932), 0.55),
@@ -233,10 +518,19 @@ const _sizes = {
 };
 ```
 
+`server/src/admin/routes.ts`, lines 120-128:
+
 ```ts
-await fb.auth.updateUser(id, { disabled: !active });
-if (!active) await fb.auth.revokeRefreshTokens(id);
-await users.doc(id).update({ active });
+  /** Switches an account off or on. Off: no PIN, SMS or password sign-in, and open sessions end at once. */
+  router.patch('/users/:id', async (req, res) => {
+    const { active } = z.object({ active: z.boolean() }).parse(req.body);
+    const { ref } = await member(req.params.id);
+    await ref.update({ active });
+    await fb.auth.updateUser(ref.id, { disabled: !active });
+    if (!active) await fb.auth.revokeRefreshTokens(ref.id);
+    await audit(fb, callerOf(res).uid, active ? 'user.activate' : 'user.deactivate', 'users', ref.id);
+    res.json({ id: ref.id, active });
+  });
 ```
 
 Terms: design tokens, Material theme, WCAG contrast 4.5:1, tap target, `RenderFlex`, widget test, unit test, coverage, `ProviderScope` overrides.
