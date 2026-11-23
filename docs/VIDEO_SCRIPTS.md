@@ -80,13 +80,13 @@ Each person says **one assignment question** ("be prepared to explain") plus the
 
 **Assignment question:** why this state management is appropriate.
 
-> "I did authentication and local preferences. We chose **Riverpod** because providers are compile-checked, testable without a `BuildContext`, and rebuild only the widgets that `ref.watch` them. No `setState`: state lives in immutable `Notifier` classes."
+> "I did authentication and local preferences. We chose **Riverpod** because state is compile-checked, testable without a `BuildContext`, and rebuilds only the widgets that watch it. We use no `setState`."
 >
-> "[login_controller.dart] Sign-in is one `Notifier<LoginState>`, `LoginController`, with three methods: PIN, SMS code, email. Validators like `validatePin` plug into the form's `validator:`, so the widget has no logic. Success sets `sessionProvider` and the root `ConsumerWidget` swaps the screen."
+> "[login_controller.dart] Sign-in is one `Notifier`, `LoginController`, with three methods: PIN, SMS code, email. Validators like `validatePin` run in the form, so the screen has no logic. Success sets the session provider and the root widget swaps the screen."
 >
 > "[server auth/routes.ts] The PIN goes to our server, which checks an **Argon2 hash**, counts failures, and **locks the account for 15 minutes after five**. Then it returns a **Firebase custom token** with **custom claims**: role and health centre. A new account is also flagged to choose its own PIN first. Forgot PIN uses an **OTP**: 30 minutes, five tries."
 >
-> "[settings.dart] **SharedPreferences**: three preferences, injected through `sharedPreferencesProvider`, read in `build()` and written on every change, which is why they survived the restart."
+> "[settings.dart] **SharedPreferences**: three preferences, restored in `build()` and saved on every change, which is why they survived the restart."
 
 ### Files and lines
 
@@ -188,7 +188,7 @@ Terms: custom token, custom claims, Argon2, lockout (429), OTP, `Notifier`, `ref
 
 > "I did patients, visits and the data model. Our ERD in `docs/ERD.md` has `users`, `healthCenters`, `patients`, `visits` and `alerts`. The Firestore collections match it field for field, in camelCase. A visit stores only `patientId`, never the patient's data, so nothing is duplicated."
 >
-> "[patients_repository.dart] **Create** writes the patient to the encrypted local database, **drift on SQLCipher**, and an **outbox** row in the same transaction. A record can never be saved without being queued. Sync uploads it, which is what you saw appear in the Console. **Read** is a drift `Stream` behind a `StreamProvider`, so the list updates live. **Update** re-queues. **Delete** is `archive`: it sets `archivedAt`."
+> "[patients_repository.dart] **Create** writes the patient to the encrypted local database, **drift on SQLCipher**, and an **outbox** row in the same transaction. A record can never be saved without being queued. Sync uploads it, which is what you saw appear in the Console. **Read** is a drift stream, so the list updates live. **Update** re-queues. **Delete** is `archive`: it sets `archivedAt`."
 >
 > "[firestore.rules] Why archive: the rules say `allow delete: if false`. A CHW reads and writes only their own patients; a supervisor reads only their centre's; `chwId`, `healthCenterId`, `shortId` and `createdAt` cannot change after creation; and a visit's `isUrgent` must equal `dangerSigns.size() > 0`, so a client cannot fake urgency. Indexes are in `firestore.indexes.json`."
 
@@ -272,11 +272,11 @@ Terms: offline-first, SQLCipher, transaction, outbox, soft delete, `hasOnly`, ow
 
 **Assignment question:** state management in action across components.
 
-> "I did urgent alerts and sync. The Home alert card and the stat card you saw both read one provider, `allDispatchesProvider`, a **StreamProvider** over the local database. When the dispatch `enum` changes, both widgets rebuild from **one source of truth**, through an exhaustive `switch`. The connection pill reads `isOnlineProvider`."
+> "I did urgent alerts and sync. The Home alert card and the stat card you saw both read one provider, `allDispatchesProvider`, a **StreamProvider** over the local database. When the dispatch state changes, both widgets rebuild from **one source of truth**. The connection pill reads `isOnlineProvider`."
 >
-> "[urgent_dispatcher.dart] `send` is `async`: it awaits the internet call under a 10-second `Future.timeout`. If that fails it falls back to SMS. [codec.dart] The SMS is encrypted with **AES-256-GCM**, with the header as **associated data**, so a message cannot be replayed under another device. The server decrypts it, makes a partial case, and replies with an **HMAC-signed** `HB OK` code. The app ignores acknowledgements whose tag does not match, so only our server can confirm. After 10 minutes with no ack, the card offers Resend and Call."
+> "[urgent_dispatcher.dart] `send` tries the internet with a **10-second timeout**. If that fails it falls back to SMS. [codec.dart] The SMS is encrypted with **AES-256-GCM**, with the header as **associated data**, so a message cannot be replayed under another device. The server decrypts it, makes a partial case, and replies with an **HMAC-signed** `HB OK` code. The app ignores acknowledgements whose tag does not match, so only our server can confirm. After 10 minutes with no ack, the card offers Resend and Call."
 >
-> "When the phone is back online the full visit uploads and **merges into the same case**. The **sync engine** drains the outbox; **workmanager** runs it in a background isolate."
+> "When the phone is back online the full visit uploads and **merges into the same case**. The **sync engine** drains the outbox; **workmanager** runs it in the background."
 
 ### Files and lines
 
@@ -356,9 +356,9 @@ Terms: `StreamProvider`, single source of truth, AES-GCM, associated data, HMAC,
 
 **Assignment question:** how the code follows clean architecture.
 
-> "Now the code. Our app is in three layers under `lib/`. **Presentation** holds screens (widgets), each with a Riverpod controller beside it. **Domain** holds entities, repository interfaces and use cases. **Data** holds the drift database and repositories that implement those interfaces. Screens never talk to Firebase or the database directly; the repository pattern keeps logic out of UI files."
+> "Now the code. Our app is in three layers under `lib/`. **Presentation** holds screens, each with a Riverpod controller beside it. **Domain** holds entities, repository interfaces and use cases. **Data** holds the drift database and repositories that implement those interfaces. Screens never talk to Firebase or the database directly; the repository pattern keeps logic out of UI files."
 >
-> "[case_screen.dart] The case screen only collects input and shows a `SnackBar` through `ScaffoldMessenger`. The work is in `CaseStatusController`, a `Notifier`: it awaits the repository, then `ref.invalidate`s the `FutureProvider.family` and the inbox so the UI refreshes at once; errors come back as the snackbar text."
+> "[case_screen.dart] The case screen only collects input and shows a snackbar. The work is in `CaseStatusController`: it calls the server, then `ref.invalidate`s the case and the inbox so the UI refreshes at once, and any error comes back as a snackbar message."
 >
 > "[server supervisor/routes.ts] The status change is a **state machine**, `TRANSITIONS`. The server re-reads the status inside a Firestore **transaction**, rejects an illegal move, and writes an event to a subcollection, so two supervisors cannot overwrite each other and every change has an author. All supervisor queries are **scoped by health centre on the server**; another centre's CHW returns 404."
 
@@ -451,7 +451,7 @@ Terms: presentation, domain, data, repository interface, `FutureProvider.family`
 
 A snippet-by-snippet version of this section, with timings, is in [PERSON5_SCRIPT.md](PERSON5_SCRIPT.md).
 
-> "I did the design system, the admin screens and testing. [widgets.dart] Every screen uses one set of widgets: `HbButton`, a 56-pixel `StadiumBorder` pill; `HbCard`, 24-pixel corners; chips, avatars, a floating tab bar. Colours are tokens in `HbColors`, wired into one `ThemeData`, with contrast measured: 4.9 to 1 on brand green, 5 to 1 on red, above the 4.5 requirement, and tap targets at least 48 pixels."
+> "I did the design system, the admin screens and testing. [widgets.dart] Every screen uses one set of widgets: `HbButton`, a 56-pixel pill; `HbCard`, 24-pixel corners; chips, avatars, a floating tab bar. Colours are tokens in `HbColors`, with contrast measured: 4.9 to 1 on brand green, 5 to 1 on red, above the 4.5 requirement, and tap targets at least 48 pixels."
 >
 > "[layout_test.dart] To prove it works on small and large phones and in landscape, a **widget test** renders every main screen at four sizes: 320 by 568, 430 by 932, landscape, and landscape with extra-large text. Any `RenderFlex` overflow fails the test."
 >
