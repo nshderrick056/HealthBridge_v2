@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HealthBridge Rwanda: Final Project Report</title>
+<style>
+@page { size: A4; margin: 22mm 20mm 22mm 20mm; @bottom-center { content: counter(page); font-family: 'Times New Roman', Times, serif; font-size: 11pt; } }
+@page :first { @bottom-center { content: none; } }
+@page wide { size: A4 landscape; margin: 14mm; @bottom-center { content: counter(page); font-family: 'Times New Roman', Times, serif; font-size: 11pt; } }
+html { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #000; }
+body { line-height: 1.45; margin: 0; }
+h1 { font-size: 14pt; font-weight: bold; text-transform: uppercase; margin: 0 0 10px; page-break-before: always; page-break-after: avoid; }
+h2 { font-size: 14pt; font-weight: bold; margin: 18px 0 6px; page-break-after: avoid; }
+h3 { font-size: 12pt; font-weight: bold; font-style: italic; margin: 12px 0 4px; page-break-after: avoid; }
+p { margin: 6px 0; text-align: justify; }
+ul, ol { margin: 6px 0 6px 22px; padding: 0; }
+li { margin: 2px 0; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 11pt; page-break-inside: auto; }
+tr { page-break-inside: avoid; }
+th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background: #e6e6e6; }
+pre { font-family: Consolas, 'Courier New', monospace; font-size: 9pt; line-height: 1.3; border: 1px solid #999; background: #f4f4f4; padding: 6px 8px; white-space: pre-wrap; word-break: break-word; page-break-inside: avoid; }
+code { font-family: Consolas, 'Courier New', monospace; font-size: 10pt; }
+.title { text-align: center; page-break-before: avoid; padding-top: 70mm; }
+.title h1 { page-break-before: avoid; font-size: 18pt; text-transform: uppercase; }
+.title p { text-align: center; }
+.todo { background: #fff2a8; padding: 0 3px; }
+.fig { text-align: center; margin: 10px 0; page-break-inside: avoid; }
+.fig img { max-width: 100%; border: 1px solid #999; }
+.cap { text-align: center; font-size: 11pt; font-style: italic; margin-top: 3px; }
+.shot { border: 2px dashed #888; background: #fafafa; color: #555; text-align: center; padding: 38px 10px; margin: 10px 0 2px; font-size: 11pt; }
+.wide { page: wide; page-break-before: always; }
+.wide img { max-height: 172mm; max-width: 100%; width: auto; }
+.toc td { border: none; padding: 1px 4px; }
+.toc td.n { text-align: right; width: 38px; }
+.toc tr.l1 td { font-weight: bold; padding-top: 5px; }
+.toc tr.l2 td:first-child { padding-left: 22px; }
+</style>
+</head>
+<body>
+
+<!-- ================= TITLE ================= -->
+<div class="title">
+  <h1>HealthBridge Rwanda</h1>
+  <p style="font-size:14pt"><b>Offline-first mobile app for community health workers, with supervisor and admin dashboards</b></p>
+  <p>&nbsp;</p>
+  <p>MOBILE APPLICATION DEVELOPMENT: FRONT-END AND BACK-END IMPLEMENTATION</p>
+  <p>FINAL PROJECT REPORT</p>
+  <p>&nbsp;</p>
+  <p><b>GROUP <span class="todo">[#]</span></b></p>
+  <p>&nbsp;</p>
+  <p>NAME OF FACILITATOR<br><b><span class="todo">[Facilitator name]</span></b></p>
+  <p>&nbsp;</p>
+  <p><span class="todo">[Institution]</span><br>Kigali, Rwanda</p>
+  <p>November 2026</p>
+</div>
+
+<!-- ================= GROUP ACTIVITIES ================= -->
+<h1 data-toc="Group Activities" id="activities">Group Activities</h1>
+<p><b>Demo video link:</b> <span class="todo">[paste the unlisted video link here]</span></p>
+<p><b>GitHub link:</b> https://github.com/nshderrick056/HealthBridge_v2</p>
+<p>The repository is public. The default branch is <code>main</code>; feature work was done on branches (for example <code>feat/firebase</code>, <code>feat/sms-roundtrip</code> and <code>feat/redesign</code>) and merged into <code>main</code>.</p>
+<table>
+<tr><th>S/N</th><th>Group member</th><th>Role</th><th>Attendance</th><th>Contribution</th></tr>
+<tr><td>1</td><td><span class="todo">[Name]</span></td><td>Member</td><td><span class="todo">[dates]</span></td><td>Sign-in and accounts: PIN, SMS-code and email sign-in, the temporary-PIN first sign-in, forgot-PIN flow, SharedPreferences settings, and the web dashboard frame (sign-in, session cookies, role routing). Server auth routes.</td></tr>
+<tr><td>2</td><td><span class="todo">[Name]</span></td><td>Member</td><td><span class="todo">[dates]</span></td><td>Patients, visits and the records database: encrypted local database, repositories, the visit form and its validation, the Firestore security rules and indexes, and the ERD.</td></tr>
+<tr><td>3</td><td><span class="todo">[Name]</span></td><td>Member</td><td><span class="todo">[dates]</span></td><td>Urgent alerts, sync and SMS: the internet and encrypted-SMS alert paths, the SMS codec, the sync engine and background sync, the server SMS webhook and merge of SMS and full visits.</td></tr>
+<tr><td>4</td><td><span class="todo">[Name]</span></td><td>Member</td><td><span class="todo">[dates]</span></td><td>Supervisor flow and home screens: alert inbox and case screens, the status state machine, CHW and patient history, the CHW home with stat cards, and the supervisor API.</td></tr>
+<tr><td>5</td><td><span class="todo">[Name]</span></td><td>Member</td><td><span class="todo">[dates]</span></td><td>Admin, design system and tests: theme and shared widgets, admin screens (resets, members, centres), role shells and navigation, the layout tests, and the admin API.</td></tr>
+</table>
+<p><span class="todo">[TEAM: check each row against the Group Contribution Tracker and the Git history before you submit. The table must match Git statistics.]</span></p>
+
+<!-- ================= ABSTRACT ================= -->
+<h1 data-toc="Abstract" id="abstract">Abstract</h1>
+<p>HealthBridge Rwanda is a mobile application, built with the Flutter framework for Android, that helps community health workers (CHWs) in Rwanda record patient visits in the field and raise urgent alerts when a patient shows danger signs. Rwandan health centres supervise many CHWs who often work without a mobile data connection, so the app is offline-first: every record is saved first in an encrypted database on the phone and uploaded to Cloud Firestore when a connection exists. When an urgent visit is recorded and the internet is not available, the app sends an encrypted SMS to the health centre's gateway, so that the alert is not lost.</p>
+<p>The solution has three parts: the Flutter app for CHWs, supervisors and admins; a small Express server on the Firebase Admin SDK for the tasks an app must not do itself; and a Next.js web dashboard for supervisors and admins. The tools and methods include Flutter, Riverpod for state management, drift with SQLCipher for local storage, Firebase Authentication and Cloud Firestore with security rules, Africa's Talking for SMS, and a branch-based Git workflow.</p>
+
+<!-- ================= CONTENTS ================= -->
+<h1 data-toc="skip" id="contents">Contents</h1>
+<table class="toc" id="toc"></table>
+
+<h1 data-toc="skip" id="figures">List of Figures</h1>
+<table class="toc" id="lof"></table>
+
+<!-- ================= 1 INTRODUCTION ================= -->
+<h1 data-toc="1. Introduction" data-l="1" id="s1">1. Introduction</h1>
+<h2 data-toc="1.1 Objectives" data-l="2">1.1 Objectives</h2>
+<p>The objective of this project is to build HealthBridge Rwanda, a working mobile application that lets a community health worker register patients, record visits and send urgent alerts to a supervisor, even where there is no mobile data. The project also gives supervisors a way to triage alerts and see the history of their health workers and patients, and gives administrators a way to create and manage accounts.</p>
+<p>To achieve this, the project has the following technical objectives:</p>
+<ul>
+<li>Implement the approved Figma prototype in Flutter, with a consistent design on small (5.5 inch or less) and large (6.7 inch or more) screens and in landscape.</li>
+<li>Use Riverpod for state management and a layered structure (presentation, domain, data) with no <code>setState</code> as the state approach (Rousselet, n.d.; Martin, 2012).</li>
+<li>Design the database as an entity-relationship diagram (ERD) first, then implement it in Cloud Firestore with security rules that restrict each record to its owner (Google, n.d.-a).</li>
+<li>Provide working create, read, update and delete operations, at least two authentication methods, user preferences stored in SharedPreferences, and automated tests.</li>
+</ul>
+
+<h2 data-toc="1.2 Contributions" data-l="2">1.2 Contributions</h2>
+<p>Health workers in many rural areas serve patients far from a health centre and often have limited signal. A pregnant woman with heavy bleeding or a child with a high fever needs the health centre to know at once. HealthBridge addresses this by keeping every record safe on the phone, uploading it when a connection returns, and sending an alert through SMS when the internet is not available.</p>
+<p>For supervisors, the app and the dashboard bring urgent cases to the top of a single inbox, show who is responsible, and keep a record of every status change. For the health system as a whole, accounts are created only by an administrator, health records are never deleted (they are archived), and each person can see only the data they are responsible for.</p>
+
+<!-- ================= 2 APPLICATION DESIGN ================= -->
+<h1 data-toc="2. Application Design" data-l="1" id="s2">2. Application Design</h1>
+<h2 data-toc="2.1 Application Features" data-l="2">2.1 Application Features</h2>
+<p>The application has three roles. Each role sees its own screens after signing in; the role is carried by the sign-in token, not chosen on the phone.</p>
+<table>
+<tr><th>Role</th><th>What the role can do</th></tr>
+<tr><td>Community health worker (CHW)</td><td>Sign in by PIN, SMS code or email; see the home screen with stat cards (visited today, due for a visit, urgent today); register, edit and archive patients; record visits with a form that validates entries; send an urgent alert by internet or SMS; see sync status and retry; change text size, default visit type and the remember-login option.</td></tr>
+<tr><td>Supervisor</td><td>See the alert inbox for their health centre; open a case; move it to reviewed, escalated, follow-up or resolved with a note; see the list of their CHWs and each CHW's visit history; see the list of patients and a patient's profile and history. The same functions are available on the web dashboard.</td></tr>
+<tr><td>Admin</td><td>Create CHW and supervisor accounts; approve forgot-PIN requests; see members in two tabs (CHWs and Supervisors); open a member to see details, deactivate or delete the account; manage health centres and open a centre's details.</td></tr>
+</table>
+
+<h2 data-toc="2.2 Overview of the UI" data-l="2">2.2 Overview of the UI</h2>
+<p>The interface follows the Figma prototype, which was redesigned to a single visual system: the Outfit typeface, a green and lime palette (brand green <code>#19695A</code>, lime <code>#D4FF89</code>), 24 px card corners, 56 px pill buttons and a floating dark tab bar with a lime Record button. Red is used only for urgent items and amber only for visits that are due. The design tokens live in <code>lib/core/theme/app_theme.dart</code> and the shared widgets in <code>lib/core/widgets/widgets.dart</code>, so every screen uses the same buttons, cards, avatars and chips. The text contrast of the main colour pairs was chosen to meet at least 4.5:1 for text and 3:1 for control edges (W3C, 2018).</p>
+<div class="shot">Insert screenshots: sign-in, CHW home with stat cards, patient profile, record-a-visit form with a validation message</div>
+<div class="cap" data-fig="Screens of the CHW app (capture these on the phone)">Figure 1. Screens of the CHW app (capture these on the phone)</div>
+<div class="shot">Insert screenshots: supervisor alert inbox, case screen, CHW history, admin Members tabs</div>
+<div class="cap" data-fig="Supervisor and admin screens of the app (capture these on the phone)">Figure 2. Supervisor and admin screens of the app (capture these on the phone)</div>
+<div class="fig"><img src="img/dashboard-login.png" alt="Dashboard sign-in"><div class="cap" data-fig="Web dashboard sign-in page for supervisors and admins">Figure 3. Web dashboard sign-in page for supervisors and admins</div></div>
+
+<!-- ================= 3 RELEVANT TECHNOLOGIES ================= -->
+<h1 data-toc="3. Relevant Technologies" data-l="1" id="s3">3. Relevant Technologies</h1>
+<h2 data-toc="3.1 Flutter" data-l="2">3.1 Flutter</h2>
+<p>Flutter is Google's open-source toolkit for building natively compiled applications from one Dart codebase (Flutter Team, n.d.). The HealthBridge app targets Android only, in two build flavours: <code>store</code>, which opens the phone's SMS composer, and <code>managed</code>, which sends the SMS itself through a small Kotlin channel. Flutter's widget tests were also used to check the layout of every main screen at four screen sizes.</p>
+<h2 data-toc="3.2 Riverpod state management" data-l="2">3.2 Riverpod state management</h2>
+<p>State is managed with Riverpod (Rousselet, n.d.). Each screen has a controller written as a <code>Notifier</code> with immutable state, and data that changes over time is exposed with <code>StreamProvider</code> and <code>FutureProvider</code>. Widgets read state with <code>ref.watch</code>, so only the widgets that depend on a value rebuild. Riverpod was chosen because providers are compile-checked, can be overridden in tests without a <code>BuildContext</code>, and keep business logic out of the widgets. For example, the Urgent-today stat card and the red alert card on the home screen both watch the same dispatch provider, so one state change updates both.</p>
+<h2 data-toc="3.3 Local storage: drift and SQLCipher" data-l="2">3.3 Local storage: drift and SQLCipher</h2>
+<p>Records are stored on the phone in a SQLite database accessed with drift (Binder, n.d.) and encrypted with SQLCipher (Zetetic, n.d.). A separate outbox table queues every change for upload. Because the patient row and its outbox row are written in one database transaction, a record is never saved without being queued.</p>
+<h2 data-toc="3.4 Firebase: Authentication and Cloud Firestore" data-l="2">3.4 Firebase: Authentication and Cloud Firestore</h2>
+<p>Firebase Authentication provides sign-in and carries each user's role and health centre as custom claims (Google, n.d.-b). Cloud Firestore stores the shared records and enforces access with security rules (Google, n.d.-a). The Firestore project is <code>healthbridge-rwanda</code>. Firestore's own offline cache is switched off because it is not encrypted; offline support comes from the encrypted drift database instead.</p>
+<h2 data-toc="3.5 Express server and Firebase Admin SDK" data-l="2">3.5 Express server and Firebase Admin SDK</h2>
+<p>A small Express server written in TypeScript uses the Firebase Admin SDK for what an app must not do: checking PIN hashes, minting custom sign-in tokens, creating accounts, changing case statuses, and receiving SMS messages. PINs are stored only as Argon2 hashes (Biryukov et al., 2021) in a collection that no app can read.</p>
+<h2 data-toc="3.6 SMS: Africa's Talking, AES-GCM and HMAC" data-l="2">3.6 SMS: Africa's Talking, AES-GCM and HMAC</h2>
+<p>Urgent alerts that cannot go over the internet are sent as SMS through Africa's Talking (Africa's Talking, n.d.). The message body is encrypted with AES-256-GCM (Dworkin, 2007), using the header as associated data so that a message cannot be replayed under another device. The server confirms with a short code carrying a tag computed with HMAC-SHA256 (Krawczyk et al., 1997), so only the server can confirm an alert.</p>
+<h2 data-toc="3.7 Next.js web dashboard" data-l="2">3.7 Next.js web dashboard</h2>
+<p>The supervisor and admin dashboard is built with Next.js (Vercel, n.d.). Sign-in tokens are kept in httpOnly cookies, so the browser's JavaScript cannot read them, and a request forwarder passes calls to the Express server. A <code>proxy.ts</code> file sends admins and supervisors to their own areas.</p>
+
+<!-- ================= 4 METHODOLOGY ================= -->
+<h1 data-toc="4. Methodology" data-l="1" id="s4">4. Methodology</h1>
+<h2 data-toc="4.1 Project methodology" data-l="2">4.1 Project methodology</h2>
+<p>The team worked in short iterations, building the project in vertical slices: each slice (sign-in, patients and visits, urgent alerts, supervisor flow, admin and design) delivered something that could be run and checked end to end. Each member owned one slice in the app, the dashboard and the server, so that every member contributed to the mobile application and not only to the web code. Work was done on feature branches, and changes were merged into <code>main</code> only after tests passed.</p>
+<p>The assignment's design step was followed in order: the Figma prototype first, then the ERD, then the Firestore implementation and the security rules, and finally the screens and tests.</p>
+<h2 data-toc="4.2 Development process and tools" data-l="2">4.2 Development process and tools</h2>
+<table>
+<tr><th>Purpose</th><th>Tool</th></tr>
+<tr><td>App framework and language</td><td>Flutter (stable) and Dart</td></tr>
+<tr><td>State management</td><td>flutter_riverpod</td></tr>
+<tr><td>Local database</td><td>drift with SQLCipher; flutter_secure_storage for the key</td></tr>
+<tr><td>Preferences</td><td>shared_preferences</td></tr>
+<tr><td>Backend</td><td>Firebase Authentication, Cloud Firestore, Firebase Admin SDK</td></tr>
+<tr><td>Server</td><td>Node.js 20+, Express, TypeScript, Vitest</td></tr>
+<tr><td>Dashboard</td><td>Next.js, React, Vitest</td></tr>
+<tr><td>SMS</td><td>Africa's Talking (sandbox during development)</td></tr>
+<tr><td>Testing</td><td>flutter_test, firebase_auth_mocks, Firebase emulators, Vitest</td></tr>
+<tr><td>Design</td><td>Figma</td></tr>
+<tr><td>Version control</td><td>Git and GitHub</td></tr>
+</table>
+<h2 data-toc="4.3 Use of AI assistance" data-l="2">4.3 Use of AI assistance</h2>
+<p>AI assistance was used in this project. The team used Anthropic's Claude Code (Anthropic, n.d.) as a coding assistant for writing and reviewing code, tests and documentation, and for drafting parts of this report. <span class="todo">[TEAM: state honestly what share of the code and of this report was AI-assisted (the assignment expects less than 40%), and describe what the team members wrote, reviewed, changed and tested themselves. Edit this paragraph so that it is accurate for your group.]</span> All code was run, tested and reviewed by the team before it was merged.</p>
+
+<!-- ================= 5 IMPLEMENTATION ================= -->
+<h1 data-toc="5. Implementation" data-l="1" id="s5">5. Implementation</h1>
+<h2 data-toc="5.1 Architecture" data-l="2">5.1 Architecture</h2>
+<p>The app is organised in layers, following clean architecture principles (Martin, 2012). Business rules do not live in widgets.</p>
+<table>
+<tr><th>Folder</th><th>Responsibility</th></tr>
+<tr><td><code>lib/presentation/</code></td><td>Screens (widgets) with a Riverpod controller beside each; no <code>setState</code> for app state.</td></tr>
+<tr><td><code>lib/domain/</code></td><td>Entities, repository interfaces (for example <code>PatientRepository</code>) and use cases: plain Dart.</td></tr>
+<tr><td><code>lib/data/</code></td><td>The encrypted drift database and the repositories that implement the domain interfaces.</td></tr>
+<tr><td><code>lib/core/</code></td><td>Firebase sign-in service, API client, settings (SharedPreferences), SMS codec, theme and shared widgets.</td></tr>
+<tr><td><code>lib/sync/</code> and <code>lib/urgent/</code></td><td>Upload to Firestore and background sync; the urgent-alert pathway.</td></tr>
+</table>
+<p>Role-based navigation is handled by three shells (CHW, supervisor and admin) built on an <code>IndexedStack</code>, so each tab keeps its state when the user switches tabs.</p>
+
+<h2 data-toc="5.2 Authentication" data-l="2">5.2 Authentication</h2>
+<p>The app offers three ways to sign in, all backed by Firebase Authentication: <b>phone and PIN</b> (the server checks the PIN and returns a custom token), <b>phone and SMS code</b> (Firebase sends a one-time code), and <b>email and password</b>. Accounts are not self-registered: an administrator creates each account, and the server texts a random temporary PIN (and a temporary password if an email was given). At the first sign-in the <code>mc</code> (must change) claim in the token makes the app show a screen where the user must choose their own PIN and password before anything else.</p>
+<ul>
+<li><b>Validation:</b> form validators reject empty or badly formed phone numbers, PINs (4 to 6 digits), emails and short passwords with a short, polite message before anything is sent.</li>
+<li><b>Lock-out:</b> five wrong PIN attempts lock the account for 15 minutes.</li>
+<li><b>Password and PIN reset:</b> the user asks in the app, an administrator approves the request, and the server texts a one-time code (valid for 30 minutes, five tries). Setting the new PIN signs the user out of other devices.</li>
+<li><b>Session after restart:</b> Firebase keeps the session on the phone, so the user stays signed in after the app is closed and reopened.</li>
+</ul>
+<pre>// server/src/auth/routes.ts: PIN check, lock-out and custom token
+if (!(await verify(cred.pinHash, given))) {
+  const locks = (cred.failedLogins ?? 0) + 1 &gt;= MAX_FAILED_LOGINS;
+  await credRef.update(locks
+    ? { failedLogins: 0, lockedUntil: Timestamp.fromMillis(Date.now() + LOCK_MS) }
+    : { failedLogins: FieldValue.increment(1) });
+  throw unauthorized();
+}
+const claims = { role: user.role, hc: user.healthCenterId };
+res.json({ customToken: await fb.auth.createCustomToken(user.id, claims) });</pre>
+
+<h2 data-toc="5.3 State management" data-l="2">5.3 State management</h2>
+<p>Every screen's behaviour sits in a controller. For example, the login controller is a <code>Notifier&lt;LoginState&gt;</code> that holds the chosen method, a busy flag and an error message, and the sign-in screen only calls it and displays its state. On success the session provider is set and the root widget swaps the sign-in screen for the app.</p>
+<pre>// lib/presentation/auth/login_controller.dart
+class LoginController extends Notifier&lt;LoginState&gt; {
+  @override
+  LoginState build() =&gt; const LoginState();
+
+  Future&lt;void&gt; submit(String id, String secret) =&gt; _run(
+    id,
+    () =&gt; state.method == LoginMethod.email
+        ? _auth.signInWithEmail(id.trim(), secret)
+        : _auth.signInWithPin(normalizePhone(id), secret),
+  );
+}</pre>
+<p>The home screen shows one state change touching two widgets: when an urgent alert is sent, the Urgent-today stat card and the red alert card both rebuild, because both watch the same dispatch provider.</p>
+
+<h2 data-toc="5.4 Offline-first CRUD" data-l="2">5.4 Offline-first CRUD</h2>
+<p>All create, read, update and delete operations on patients work offline. The repository writes to the local database and adds an outbox row in the same transaction; the sync engine later uploads the change to Firestore under the signed-in CHW's account and the security rules.</p>
+<table>
+<tr><th>Operation</th><th>In the app</th><th>In Firestore</th></tr>
+<tr><td>Create</td><td>Register patient; the list updates at once</td><td>New document in <code>patients</code></td></tr>
+<tr><td>Read</td><td>List with search, profile and visit history (drift streams)</td><td>Same fields, read by the owner and the supervisor of the same centre</td></tr>
+<tr><td>Update</td><td>Edit a patient; the change is queued</td><td><code>updatedAt</code> and the edited fields change</td></tr>
+<tr><td>Delete</td><td>"Archive": the patient disappears from every list</td><td>The document stays and gets <code>archivedAt</code>; the rules refuse a real delete</td></tr>
+</table>
+<pre>// lib/data/repositories/patients_repository.dart
+return _db.transaction(() async {
+  final patient = await _db.into(_db.patients).insertReturning(row);
+  await _enqueue(patient);          // outbox row, same transaction
+  return patient;
+});
+
+/// The app's "delete": hides the patient everywhere but keeps the record.
+Future&lt;Patient&gt; archive(Patient p) =&gt;
+    update(p.copyWith(archivedAt: Value(_now())));</pre>
+<p>Errors are shown to the user as snackbars with a short message, for example when a case status cannot be saved or when the server cannot be reached.</p>
+
+<h2 data-toc="5.5 Urgent alerts and SMS fallback" data-l="2">5.5 Urgent alerts and SMS fallback</h2>
+<p>When a visit has a danger sign, the app tries to send the visit and its alert to Firestore within 10 seconds. If that fails, it sends an encrypted SMS to the health centre's gateway number. The server decrypts the SMS, creates a partial case, and replies <code>HB OK &lt;code&gt; &lt;tag&gt;</code> with an HMAC tag; the app ignores any reply whose tag does not match its device key. When the phone is online again, the full visit is uploaded and the server merges it into the same case. If no confirmation arrives within 10 minutes, the card offers Resend and Call.</p>
+<pre>// lib/urgent/urgent_dispatcher.dart
+Future&lt;void&gt; send(String visitId) async {
+  await _repo.start(visitId);
+  try {
+    await _postAlert(visitId).timeout(internetTimeout);   // 10 s
+    await _repo.updateState(visitId, DispatchState.confirmed);
+  } on Exception {
+    await sendSms(visitId);
+  }
+}</pre>
+
+<h2 data-toc="5.6 Supervisor and admin functions" data-l="2">5.6 Supervisor and admin functions</h2>
+<p>A supervisor changes a case's status through the server, which allows only certain moves and records each change with the person, the old and new status and a note in an <code>events</code> sub-collection. The change runs inside a Firestore transaction that re-reads the status first, so two supervisors cannot overwrite each other. The server also texts the CHW when a case is escalated or put on follow-up.</p>
+<pre>// server/src/supervisor/routes.ts
+export const TRANSITIONS: Record&lt;Status, Status[]&gt; = {
+  new: ['reviewed', 'escalated', 'follow_up', 'resolved'],
+  reviewed: ['escalated', 'follow_up', 'resolved'],
+  escalated: ['follow_up', 'resolved'],
+  follow_up: ['escalated', 'resolved'],
+  resolved: [],
+};</pre>
+<p>An administrator can deactivate a member: the server sets <code>active</code> to false, disables the user in Firebase Authentication and revokes the refresh tokens, so the person is signed out at once. Deleting a member removes the account, credentials and devices but keeps the patients and visits that person recorded, because health records are kept.</p>
+
+<h2 data-toc="5.7 User preferences (SharedPreferences)" data-l="2">5.7 User preferences (SharedPreferences)</h2>
+<p>Three preferences are saved with SharedPreferences and restored when the app starts: the text size (Normal, Large, Extra large), the default visit type, and the remember-login option together with the saved phone number. The PIN is never stored. The settings controller reads the values in <code>build()</code> and writes them on every change.</p>
+<pre>// lib/core/settings/settings.dart
+Future&lt;void&gt; setTextSize(TextSize size) async {
+  state = _with(textSize: size);                 // the screen updates at once
+  await _prefs.setString(_textSize, size.name);  // then it is saved
+}</pre>
+
+<h2 data-toc="5.8 Database design (ERD to Firestore)" data-l="2">5.8 Database design (ERD to Firestore)</h2>
+<p>The entity-relationship diagram (Figure 4, on the next page) was designed before the database was implemented. It shows the collections, their attributes, primary keys (PK) and foreign keys (FK). Firestore has no joins or foreign-key constraints, so the relationships are kept by the app and the server and checked by the security rules; for example, a visit may point only at a patient owned by the same CHW. The field names in the diagram are exactly those stored and checked by the rules, and all names are written in camelCase.</p>
+<table>
+<tr><th>Collection</th><th>Purpose</th><th>Main fields</th></tr>
+<tr><td><code>users</code></td><td>One document per account; the ID is the Firebase Auth UID</td><td><code>role</code>, <code>fullName</code>, <code>phone</code>, <code>email</code>, <code>healthCenterId</code>, <code>active</code>, <code>createdAt</code></td></tr>
+<tr><td><code>healthCenters</code></td><td>Health centres</td><td><code>name</code>, <code>district</code>, <code>sector</code>, <code>callNumber</code></td></tr>
+<tr><td><code>patients</code></td><td>Patients registered by a CHW</td><td><code>shortId</code>, <code>chwId</code>, <code>healthCenterId</code>, <code>fullName</code>, <code>village</code>, <code>consentAt</code>, <code>archivedAt</code></td></tr>
+<tr><td><code>visits</code></td><td>Visits recorded on the phone</td><td><code>patientId</code>, <code>chwId</code>, <code>type</code>, <code>answers</code>, <code>dangerSigns</code>, <code>isUrgent</code>, <code>source</code></td></tr>
+<tr><td><code>alerts</code> and <code>alerts/{id}/events</code></td><td>One alert per urgent visit (same ID) and its status history</td><td><code>status</code>, <code>channel</code>; events: <code>actorId</code>, <code>fromStatus</code>, <code>toStatus</code>, <code>note</code></td></tr>
+<tr><td><code>dangerSigns</code>, <code>devices</code></td><td>Reference list; devices registered to a user</td><td><code>labelEn</code>, <code>labelRw</code>; <code>buildFlavor</code>, <code>lastSyncAt</code></td></tr>
+<tr><td>Server-only: <code>credentials</code>, <code>deviceKeys</code>, <code>resetRequests</code>, <code>smsMessages</code>, <code>auditLog</code></td><td>PIN hashes, SMS keys, reset codes and logs; closed to every app by the rules</td><td><code>pinHash</code>, <code>failedLogins</code>, <code>lockedUntil</code>, and so on</td></tr>
+</table>
+<p>No data is duplicated: a visit stores only the patient's ID, and an alert has the same ID as its visit. Composite indexes (in <code>firestore.indexes.json</code>) support the main queries: alerts by health centre, status and time (the supervisor inbox), alerts by health centre and time, visits by CHW and time, and users by health centre and role.</p>
+
+<div class="wide"><div class="fig"><img src="img/erd.png" alt="ERD"><div class="cap" data-fig="Entity-relationship diagram of the Cloud Firestore database">Figure 4. Entity-relationship diagram of the Cloud Firestore database</div></div></div>
+
+<h2 data-toc="5.9 Firebase security rules" data-l="2">5.9 Firebase security rules</h2>
+<p>The security rules in <code>firestore.rules</code> decide who may read and write each document. The role and health centre come from the sign-in token's custom claims, which only the server can set, so a user cannot raise their own access.</p>
+<ul>
+<li><b>Owner-limited access:</b> a CHW can read and write only their own patients and visits; a supervisor can read only the records of their own health centre.</li>
+<li><b>Field-by-field validation:</b> only the listed keys are allowed on a patient or visit; required keys must be present; types and lengths are checked.</li>
+<li><b>Immutable keys:</b> after creation, <code>chwId</code>, <code>healthCenterId</code>, <code>shortId</code> and <code>createdAt</code> cannot change.</li>
+<li><b>Consistent urgency:</b> a visit is urgent exactly when it has danger signs, so the app cannot fake urgency.</li>
+<li><b>No deletes:</b> deleting a health record is refused; the app archives instead.</li>
+<li><b>Server-only data:</b> PIN hashes, device keys, reset requests and logs are closed to every client.</li>
+</ul>
+<pre>// firestore.rules (patients)
+match /patients/{patientId} {
+  allow read: if (isChw() &amp;&amp; existing().chwId == uid())
+    || (isSupervisor() &amp;&amp; existing().healthCenterId == hc());
+  allow create: if isChw() &amp;&amp; validPatient()
+    &amp;&amp; incoming().chwId == uid() &amp;&amp; incoming().healthCenterId == hc();
+  allow update: if isChw() &amp;&amp; existing().chwId == uid() &amp;&amp; validPatient()
+    &amp;&amp; same('chwId') &amp;&amp; same('healthCenterId') &amp;&amp; same('shortId') &amp;&amp; same('createdAt');
+  allow delete: if false; // archive instead (archivedAt)
+}</pre>
+<div class="shot">Insert screenshots of the Firebase Console: the <code>patients</code> collection after a create, an archived patient with <code>archivedAt</code>, and the Rules tab</div>
+<div class="cap" data-fig="Firebase Console showing the records created from the app (capture these from the Console)">Figure 5. Firebase Console showing the records created from the app (capture these from the Console)</div>
+
+<!-- ================= 6 TESTING ================= -->
+<h1 data-toc="6. Testing" data-l="1" id="s6">6. Testing</h1>
+<h2 data-toc="6.1 Testing performed" data-l="2">6.1 Testing performed</h2>
+<p>Testing was done at four levels. The Flutter tests include unit tests for the business logic, widget tests for the screens, and layout tests that render every main screen at several sizes. The server and the dashboard have their own automated tests. Finally, the application was run on a physical phone.</p>
+<table>
+<tr><th>Level</th><th>Tool</th><th>What it checks</th></tr>
+<tr><td>Unit tests (Flutter)</td><td>flutter_test, firebase_auth_mocks</td><td>Settings are saved and restored; sign-in controller sets the session; the first sign-in must change temporary details; patients search and filter; validation ranges; the SMS codec against shared test vectors; sync and the urgent dispatcher.</td></tr>
+<tr><td>Widget tests (Flutter)</td><td>flutter_test</td><td>Screens show the expected content and react to input, including the register-a-patient form, the first-sign-in screen, the supervisor case flow and the admin screens.</td></tr>
+<tr><td>Layout tests (Flutter)</td><td>flutter_test</td><td>Every main screen is rendered at 320x568, 430x932, landscape 844x390 and landscape with extra-large text; any <code>RenderFlex</code> overflow fails the test.</td></tr>
+<tr><td>Server tests</td><td>Vitest on the Firebase emulators</td><td>Sign-in, lock-out, accounts, resets, supervisor transitions and scoping, admin routes, and SMS handling.</td></tr>
+<tr><td>Dashboard tests</td><td>Vitest and Testing Library</td><td>Sign-in form, alert inbox, case detail, member detail and history pages.</td></tr>
+</table>
+<pre>// test/layout_test.dart: the four screen sizes every main screen is tested at
+const _sizes = {
+  'small phone (320x568)': (Size(320, 568), 0.55),
+  'large phone (430x932)': (Size(430, 932), 0.55),
+  'landscape (844x390)': (Size(844, 390), 0.55),
+  'landscape, extra large text': (Size(844, 390), 0.72),
+};</pre>
+
+<h2 data-toc="6.2 Results" data-l="2">6.2 Results</h2>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td><code>flutter analyze</code></td><td>No issues found.</td></tr>
+<tr><td>Flutter tests (<code>flutter test --coverage</code>)</td><td>130 tests, all passed.</td></tr>
+<tr><td>Line coverage of the Flutter app</td><td>73.0% of the hand-written code (2,737 of 3,751 lines). Including the generated drift file <code>db.g.dart</code> the figure is 56.2% (3,488 of 6,204 lines).</td></tr>
+<tr><td>Server tests (Vitest, Firebase emulators)</td><td><span class="todo">[TEAM: run <code>npm test</code> in <code>server/</code> (Java 21 is needed for the Firebase emulators) and write the real result here, for example "NN tests, all passed". At the last full run on the emulators, 48 tests passed.]</span></td></tr>
+<tr><td>Dashboard tests (Vitest)</td><td>35 tests, all passed.</td></tr>
+</table>
+<p>The coverage figure was computed from the <code>lcov.info</code> file written by <code>flutter test --coverage</code>. The generated file <code>lib/data/db.g.dart</code> (2,453 lines, 31% covered) is produced by the drift code generator and is not written by hand, so the first figure is the more meaningful measure of the team's own code. The files with the least coverage are the forgot-PIN screen (<code>forgot_screen.dart</code>), the authentication service (<code>auth_service.dart</code>, 40%) and the admin screens (<code>admin_screens.dart</code>, 50%); these are the next candidates for additional tests.</p>
+<div class="shot">Insert screenshots of the terminal: <code>flutter analyze</code> with no issues, and the <code>flutter test --coverage</code> result</div>
+<div class="cap" data-fig="Analyzer and test results (capture these from the terminal)">Figure 6. Analyzer and test results (capture these from the terminal)</div>
+<h2 data-toc="6.3 Tests on a physical phone" data-l="2">6.3 Tests on a physical phone</h2>
+<p>On 15 November 2026 the managed build of the app was run on a physical Samsung phone against the Firebase project, with the server behind a tunnel and the Africa's Talking sandbox. The following were checked: all three sign-in methods; a patient and a visit appearing in Firestore under the CHW; forgot-PIN from request to a working new PIN; an urgent alert reaching the supervisor's inbox and being escalated with a note and recorded in the history; and an admin creating an account. Problems found and fixed during the run included custom tokens needing to be signed with the key file, the SMS region policy needing to allow Rwanda, and records left by an older install being uploaded under the new account (the app now allows one CHW's records per phone). A later run found a sign-in screen that stayed on "Please wait" after setting a new password, because Firebase ends the old session when the password changes; the app now signs in again with the new password.</p>
+
+<!-- ================= 7 SETUP ================= -->
+<h1 data-toc="7. Setup Instructions" data-l="1" id="s7">7. Setup Instructions</h1>
+<p>The repository is at https://github.com/nshderrick056/HealthBridge_v2. The README in the repository has the same steps.</p>
+<h2 data-toc="7.1 Requirements" data-l="2">7.1 Requirements</h2>
+<ul>
+<li>Flutter (stable channel) and an Android phone or emulator. The app does not run on web or desktop.</li>
+<li>Node.js 20 or newer, and Java 21 (for the Firebase emulators used by the server tests).</li>
+<li>The Firebase CLI: <code>npm i -g firebase-tools</code>.</li>
+<li>A Firebase service-account key for the project, kept outside the repository (Firebase console, Project settings, Service accounts).</li>
+</ul>
+<h2 data-toc="7.2 Run the server" data-l="2">7.2 Run the server</h2>
+<pre>cd server
+cp .env.example .env     # set GOOGLE_APPLICATION_CREDENTIALS to the key path (outside the repo)
+npm ci
+npm test                 # starts the Firebase emulators and runs the server tests
+npm run seed             # demo accounts and data (SEED_PIN and SEED_PASSWORD in .env)
+npm run dev              # http://localhost:3000</pre>
+<h2 data-toc="7.3 Build and run the app" data-l="2">7.3 Build and run the app</h2>
+<pre>flutter pub get
+flutter test
+flutter run --flavor managed \
+  --dart-define=API_URL=https://&lt;address the phone can reach&gt; \
+  --dart-define=SMS_GATEWAY_NUMBER=+2507XXXXXXXX
+# release APK:
+flutter build apk --flavor managed --dart-define=API_URL=... --dart-define=SMS_GATEWAY_NUMBER=...</pre>
+<p>The phone must reach the server, so during development the server is exposed with a tunnel (for example a Cloudflare quick tunnel) and its address is passed as <code>API_URL</code>. A new tunnel address means the app must be rebuilt.</p>
+<h2 data-toc="7.4 Run the dashboard" data-l="2">7.4 Run the dashboard</h2>
+<pre>cd dashboard
+cp .env.example .env.local    # API_URL and FIREBASE_WEB_API_KEY
+npm ci
+npm test
+npm run dev                   # http://localhost:3001</pre>
+<h2 data-toc="7.5 Demo accounts and rules" data-l="2">7.5 Demo accounts and rules</h2>
+<p><code>npm run seed</code> creates demo CHWs (phone numbers +250780000101 to +250780000103, signed in with the PIN from <code>SEED_PIN</code>), a supervisor (<code>supervisor@example.test</code>) and an admin (<code>admin@example.test</code>), both signed in with <code>SEED_PASSWORD</code>. These are synthetic accounts. After changing the security rules, deploy them with <code>firebase deploy --only firestore</code>. After changing a drift table, run <code>dart run build_runner build</code>.</p>
+
+<!-- ================= 8 LIMITATIONS ================= -->
+<h1 data-toc="8. Known Limitations and Future Work" data-l="1" id="s8">8. Known Limitations and Future Work</h1>
+<h2 data-toc="8.1 Known limitations" data-l="2">8.1 Known limitations</h2>
+<ul>
+<li><b>Offline SMS on the Firebase build:</b> the offline SMS alert and its merge were last run end to end on an earlier version of the backend (1 November 2026). The Firebase version is covered by code and server tests, but a full phone run is still to be done.</li>
+<li><b>SMS delivery:</b> the Africa's Talking account is in sandbox mode, which delivers only to its simulator. Texts to real phones (temporary PINs, reset codes, supervisor notices, alert confirmations) need a live number. Firebase also limits sign-in SMS on the free plan until billing is added.</li>
+<li><b>Hosting:</b> during development the server ran on a laptop behind a temporary tunnel, and a tunnel address can expire. The server and dashboard are prepared for Vercel but are not yet hosted, and the release signing key has not been created.</li>
+<li><b>Clinical content:</b> the danger signs and the validation ranges (for example temperature 30 to 45 °C) are placeholders until a clinician confirms them.</li>
+<li><b>Language:</b> the app text is in English; Kinyarwanda translation by a native speaker is not done.</li>
+<li><b>Authentication methods:</b> the methods are PIN, SMS code and email and password. Google sign-in is not implemented because accounts must be created by an administrator.</li>
+<li><b>Test coverage:</b> coverage of the hand-written Flutter code is 73.0%, but some screens, such as the forgot-PIN screen, have almost no widget tests.</li>
+<li><b>Not yet tested on a phone:</b> 20 visits recorded offline through an app kill and a reboot; background sync with the app closed; confirmation from a real <code>HB OK</code> reply on the managed build. The web dashboard is covered by unit tests but has had little manual testing.</li>
+<li><b>Platform:</b> Android only; there is no iOS build.</li>
+</ul>
+<h2 data-toc="8.2 Future work" data-l="2">8.2 Future work</h2>
+<ul>
+<li>Complete the phone tests above and host the server and dashboard.</li>
+<li>Connect a live Africa's Talking number so that every text reaches a real phone.</li>
+<li>Have a clinician review the danger signs and validation ranges, and translate the app into Kinyarwanda.</li>
+<li>Add push notifications for new alerts and for confirmations to the CHW.</li>
+<li>Add email verification for accounts that have an email address, and an audit view for administrators.</li>
+<li>Add widget tests for the forgot-PIN flow and the authentication service.</li>
+<li>Review the Android foreground-service and boot permissions added by background sync before a Play Store release.</li>
+</ul>
+
+<!-- ================= 9 CONCLUSION ================= -->
+<h1 data-toc="9. Conclusion" data-l="1" id="s9">9. Conclusion</h1>
+<p>HealthBridge Rwanda shows how Flutter, Riverpod and Firebase can be combined into an application for a setting with unreliable connectivity. The app records patients and visits on an encrypted local database, uploads them to Cloud Firestore under strict security rules, and sends urgent alerts by internet or encrypted SMS. Supervisors and administrators have their own screens in the app and on the web dashboard. The layered structure, the Riverpod controllers and the automated tests, including layout tests at several screen sizes, made the work easier to share between five people and to check.</p>
+<p>The project also showed the limits of a short development period: the SMS path was not fully proven on the Firebase build, the sandbox SMS account does not reach real phones, and the clinical content still needs expert review. These are listed in Section 8 as the next steps. With a live SMS number, hosting and clinical review, the application could be piloted with a health centre.</p>
+
+<!-- ================= REFERENCES ================= -->
+<h1 data-toc="References" data-l="1" id="refs">References</h1>
+<p>Africa's Talking. (n.d.). <i>SMS API documentation</i>. https://developers.africastalking.com/docs/sms/overview</p>
+<p>Anthropic. (n.d.). <i>Claude Code</i>. https://www.anthropic.com/claude-code</p>
+<p>Binder, S. (n.d.). <i>Drift documentation</i>. https://drift.simonbinder.eu</p>
+<p>Biryukov, A., Dinu, D., Khovratovich, D., &amp; Josefsson, S. (2021). <i>Argon2 memory-hard function for password hashing and proof-of-work applications</i> (RFC 9106). IETF. https://www.rfc-editor.org/rfc/rfc9106</p>
+<p>Dworkin, M. (2007). <i>Recommendation for block cipher modes of operation: Galois/Counter Mode (GCM) and GMAC</i> (NIST Special Publication 800-38D). https://csrc.nist.gov/pubs/sp/800/38/d/final</p>
+<p>Flutter Team. (n.d.). <i>Flutter documentation</i>. https://docs.flutter.dev</p>
+<p>Google. (n.d.-a). <i>Cloud Firestore documentation and security rules</i>. https://firebase.google.com/docs/firestore</p>
+<p>Google. (n.d.-b). <i>Firebase Authentication documentation</i>. https://firebase.google.com/docs/auth</p>
+<p>Krawczyk, H., Bellare, M., &amp; Canetti, R. (1997). <i>HMAC: Keyed-hashing for message authentication</i> (RFC 2104). IETF. https://www.rfc-editor.org/rfc/rfc2104</p>
+<p>Martin, R. C. (2012, August 13). <i>The clean architecture</i>. https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html</p>
+<p>Rousselet, R. (n.d.). <i>Riverpod documentation</i>. https://riverpod.dev</p>
+<p>Vercel. (n.d.). <i>Next.js documentation</i>. https://nextjs.org/docs</p>
+<p>W3C. (2018). <i>Web content accessibility guidelines (WCAG) 2.1</i>. https://www.w3.org/TR/WCAG21/</p>
+<p>Zetetic. (n.d.). <i>SQLCipher</i>. https://www.zetetic.net/sqlcipher/</p>
+
+</body>
+</html>
