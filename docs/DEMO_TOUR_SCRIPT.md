@@ -42,7 +42,7 @@ No slide deck, no cuts, no introductions of the team. One continuous recording o
 
 **Do:** the app is fully closed (swipe it away). Open it from the launcher. It lands on sign-in.
 
-**Say:** "This is HealthBridge, an offline-first app for community health workers in Rwanda. The app was fully closed, so this is a **cold start**. It looked for a saved session, found none, and shows sign-in. There are three ways to sign in: PIN, SMS code and email with a password."
+**Say:** "This is HealthBridge, an offline-first app for community health workers in Rwanda. The app was fully closed, so this is a **cold start**. On startup it tried to restore the saved Firebase session, found none, and shows sign-in. There are three ways to sign in: PIN, SMS code and email with a password."
 
 ## 2. Create the account and sign in (0:25 to 1:25), app + Console
 
@@ -58,7 +58,7 @@ No slide deck, no cuts, no introductions of the team. One continuous recording o
 
 **Do (phone):** choose **PIN**. First type a three-digit PIN and press Sign in: the form shows a polite message and sends nothing. Then enter the real temporary PIN. The app asks for your own PIN: enter two different ones, show the "PINs differ" message, then two matching ones.
 
-**Say:** "A wrong-format PIN is stopped by the form with a clear message, before anything is sent. With the right temporary PIN the app forces me to **choose my own PIN** before anything else. Different entries are rejected; matching ones are accepted."
+**Say:** "A wrong-format PIN is stopped by the form's `validator` with a clear message, before anything is sent. With the right temporary PIN, the `mc` claim in my token makes the app show **choose my own PIN** before anything else. Different entries are rejected; matching ones are accepted."
 
 **Do (phone):** open Profile and **log out**. Back on sign-in, choose **Email** and log in with an email and password (use an account that has them, for example the supervisor).
 
@@ -68,7 +68,7 @@ No slide deck, no cuts, no introductions of the team. One continuous recording o
 
 **Do (CHW account):** go through each screen, about 5 seconds each: Home (stat cards: Visited today, Due for a visit, Urgent today), Patients (type in search), a patient profile with its history, Record a visit, Sync status, Settings. Rotate the phone once to landscape on Home, then back.
 
-**Say:** "This is the health worker's app. Home shows stat cards: visited today, due for a visit, urgent today. Patients has search. Each patient has a profile with their visit history. Here is the visit form and the sync status, which shows what is still waiting to upload. And Settings. If I rotate to landscape, nothing overflows."
+**Say:** "This is the health worker's app. Home shows stat cards fed by Riverpod providers: visited today, due for a visit, urgent today. Patients has search. Each patient has a profile with their visit history. Here is the visit form and the sync status, which shows what is still waiting to upload. And Settings. If I rotate to landscape, there are no `RenderFlex` overflows."
 
 **Do:** in the visit form enter a temperature of 99.
 
@@ -78,7 +78,7 @@ No slide deck, no cuts, no introductions of the team. One continuous recording o
 
 **Do:** on a new visit tick a danger sign and tap **Send urgent alert**. Go to Home.
 
-**Say:** "Now **one state change updating two widgets**. I add a danger sign and send the alert. The Urgent-today stat card goes up and the red alert card appears. They both read the same Riverpod provider, so they rebuild together with no refresh."
+**Say:** "Now **one state change updating two widgets**. I add a danger sign and send the alert. The Urgent-today stat card goes up and the red alert card appears. They both `ref.watch` the same `StreamProvider`, so they rebuild together with no `setState`."
 
 **Console (tab 3 `alerts`):** the new alert appears with `status: new`, `channel: internet`.
 
@@ -95,7 +95,7 @@ This is the most important part. Keep the phone and the `patients` collection (t
 | Update | edit the village, Save | the same document's `village` and `updatedAt` change |
 | Delete | archive the patient | the document stays and gets `archivedAt` (Firestore never deletes it) |
 
-**Say:** "Now **create, read, update and delete**, with the Console beside the phone. **Create:** I register a patient. The app saves it on the phone first, so it works offline, then uploads it. There it is in the Console, with the field names from our diagram. **Read:** here is the profile and history. **Update:** I change the village, and the Console shows the new village and update time. **Delete:** I archive the patient. The document does **not** disappear: it gets an `archivedAt` field, because our security rules forbid deleting health records. The app hides it everywhere, but the record is kept."
+**Say:** "Now **create, read, update and delete**, with the Console beside the phone. **Create:** I register a patient. The app writes to the local drift database first, so it works offline, then the sync engine uploads it. There it is in the Console, with the field names from our diagram. **Read:** here is the profile and history. **Update:** I change the village, and the Console shows the new village and update time. **Delete:** I archive the patient. The document does **not** disappear: it gets an `archivedAt` field, because our security rules forbid deleting health records. The app hides it everywhere, but the record is kept."
 
 **If the Console is slow:** keep talking for a few seconds ("the upload runs in the background") and press the Console's refresh. If it still does not appear, open Sync status on the phone and show "all sent".
 
@@ -105,7 +105,7 @@ This is the most important part. Keep the phone and the `patients` collection (t
 
 **Do:** Settings: text size **Large**, default visit type **Child**, **Remember login** on. Swipe the app away and reopen it.
 
-**Say:** "In Settings I change the text size, the default visit type, and turn remember login on. Now I close the app completely and reopen it. All three are still set, and the phone number is filled in. They are saved with SharedPreferences, and the PIN is never saved."
+**Say:** "In Settings I change the text size, the default visit type, and turn remember login on. Now I close the app completely and reopen it. All three are still set, and the phone number is filled in. They are saved with `SharedPreferences` through a Riverpod `Notifier`, and the PIN is never saved."
 
 ## 7. The dashboards (4:10 to 4:50), dashboards
 
