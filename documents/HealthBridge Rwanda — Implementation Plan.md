@@ -1,5 +1,8 @@
 # HealthBridge Rwanda — Implementation Plan
 
+> **Updated Nov 2026.** The database and sign-in moved from PostgreSQL, Prisma and JWT to **Cloud Firestore and Firebase Authentication**. Only the backend wording below was changed; the ownership table, the sprint order, the risks and the definition of done are as originally planned. The entity-relationship diagram is in `docs/ERD.md`.
+
+
 Oct 6, 2026 · @GATETE Derrick
 
 The riskiest parts, the SMS round-trip and the offline outbox, are built in sprints 2 and 3, before the full app screens, so the feature that makes HealthBridge different is proven early. The plan uses 8 one-week sprints; stretch or compress them to the course deadline.
@@ -10,9 +13,9 @@ Each member owns one slice of the system end to end, including its tests, so no 
 
 | Member | Area | Development tasks |
 | --- | --- | --- |
-| Gatete Derrick | Backend core and DevOps | Monorepo and GitHub Actions CI, including the release job that builds both flavours; Express + TypeScript setup; Prisma schema, migrations and seed data; auth (login, refresh, argon2id, JWT, role middleware); device registration and key issue; hosting on Render/Railway; API tests (Jest + Supertest) |
+| Gatete Derrick | Backend core and DevOps | Monorepo and GitHub Actions CI, including the release job that builds both flavours; Express + TypeScript setup; Firestore rules, indexes and seed data; auth (PIN login with argon2id and Firebase custom tokens, first-sign-in change, role middleware); device registration and key issue; hosting on Vercel; API tests (Vitest + Supertest on the Firebase emulators) |
 | Fabrice Mbarushimana | SMS pipeline | Payload codec and AES-GCM in TypeScript and Dart with shared test vectors; /webhooks/sms parsing, replay protection, two-part reassembly; acknowledgement SMS and delivery reports via Africa's Talking; `UrgentSender` (composer and direct send) and the store/managed Flutter flavours |
-| Cedric Bigwi Hindura | Offline data and sync | drift schema with SQLCipher; repositories and Riverpod providers; outbox; workmanager background sync with back-off; reachability check; /sync/push and /sync/pull endpoints and conflict rules; draft autosave; danger-sign rule logic |
+| Cedric Bigwi Hindura | Offline data and sync | drift schema with SQLCipher; repositories and Riverpod providers; outbox; workmanager background sync with back-off; reachability check; Firestore sync writes and reads under the security rules, and the conflict rules; draft autosave; danger-sign rule logic |
 | Habibullah Ayodele | CHW app screens | Theme and reusable widgets; Login/PIN, Home, Patients (list, register, profile), Record visit stepper with the four forms and validation, Danger signs, Urgent screens, Alerts tab; Kinyarwanda and English (ARB files); widget tests |
 | Melissa Isimbi | Supervisor dashboard | Next.js + Tailwind setup; supervisor login; alert inbox with 10 s polling; case detail; status actions; CHW list; the supervisor endpoints (GET/PATCH /alerts, GET /chws); dashboard tests (Vitest); end-to-end test script across app, API and dashboard |
 
@@ -22,9 +25,9 @@ Shared rules: every pull request is reviewed by one other member, and the owners
 
 | Sprint | Development goal | Deliverables (owner) | Done when |
 | --- | --- | --- | --- |
-| 1 | Foundations | Monorepo, CI, Express skeleton, Prisma schema + seed, auth endpoints (Derrick); Flutter skeleton with flavours and routing, plus the eight foundation widgets from the Design Brief (header, buttons, input field, status chip, summary card, patient card, bottom navigation) (Habibullah); drift schema (Cedric); Next.js skeleton (Melissa); codec spec and test vectors (Fabrice) | All three apps build in CI; login works against the deployed API |
+| 1 | Foundations | Monorepo, CI, Express skeleton, Firestore rules + seed, auth endpoints (Derrick); Flutter skeleton with flavours and routing, plus the eight foundation widgets from the Design Brief (header, buttons, input field, status chip, summary card, patient card, bottom navigation) (Habibullah); drift schema (Cedric); Next.js skeleton (Melissa); codec spec and test vectors (Fabrice) | All three apps build in CI; login works against the deployed API |
 | 2 | SMS round-trip | Codec + AES-GCM in TS and Dart, /webhooks/sms, ack SMS in sandbox (Fabrice); device registration (Derrick) | A simulator SMS becomes an alert row and an ack SMS goes back |
-| 3 | Offline sync engine | Outbox, workmanager, reachability, /sync/push and /sync/pull (Cedric); API tests for sync (Derrick) | 20 visits recorded offline sync exactly once after a reboot |
+| 3 | Offline sync engine | Outbox, workmanager, reachability, Firestore sync (Cedric); API tests for sync (Derrick) | 20 visits recorded offline sync exactly once after a reboot |
 | 4 | CHW core features | Login/PIN, Home, Patients, Record visit with four forms (Habibullah); repositories and drafts wired to screens (Cedric) | A routine visit goes from phone to database on a real device |
 | 5 | Urgent flow | Danger signs and urgent screens (Habibullah); rule logic (Cedric); `UrgentSender` both flavours, ack reading, not-confirmed branch (Fabrice) | An urgent alert in airplane mode with a SIM reaches the database and is confirmed |
 | 6 | Supervisor dashboard | Inbox, case detail, actions, CHW list, supervisor endpoints (Melissa); status pull to the CHW app (Cedric) | A supervisor resolves an SMS alert and the CHW sees it after sync |

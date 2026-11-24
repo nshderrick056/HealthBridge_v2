@@ -1,160 +1,34 @@
 # HealthBridge Rwanda — Backend Schema
 
-Oct 6, 2026 · @GATETE Derrick
+Oct 6, 2026 · @GATETE Derrick · **Updated Nov 2026: the backend is Cloud Firestore and Firebase Authentication. The original PostgreSQL design was replaced; the full entity-relationship diagram is in `docs/ERD.md` and the rules are in `firestore.rules`.**
 
-Eleven PostgreSQL tables hold the MVP; the phone mirrors the clinical ones in SQLite plus an outbox. Every clinical row is keyed by a UUID created on the phone, which makes retries and the SMS-then-sync merge safe.
+Cloud Firestore holds the shared records; the phone mirrors the clinical ones in SQLite plus an outbox. Every clinical record is keyed by a UUID created on the phone, which makes retries and the SMS-then-sync merge safe: a write repeated after a dropped connection lands on the same document.
 
-## 1. PostgreSQL (server)
+## 1. Cloud Firestore (shared database)
 
-| Table | Holds |
-| --- | --- |
-| health\_centers | Facilities and the supervisor call-back number |
-| users | CHWs, supervisors, admins |
-| devices | Registered phones, their SMS keys, and which build (store or managed) each runs |
-| patients | Patients, keyed by phone-generated UUID |
-| visits | Visit records, form answers as JSONB |
-| danger\_signs | Reference list of sign codes in EN and RW |
-| visit\_danger\_signs | Signs ticked on each visit |
-| alerts | One alert per urgent visit, with status |
-| alert\_events | Status history of each alert |
-| sms\_messages | Every inbound and outbound SMS, for replay protection and debugging |
-| audit\_log | Who changed what |
+Project `healthbridge-rwanda`. Field names are camelCase and are exactly the names checked by `firestore.rules`. Firestore has no joins or foreign-key constraints, so the relationships below are kept by the app and the server and checked by the security rules.
 
-```sql
-CREATE TABLE health_centers (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        TEXT NOT NULL,
-  district    TEXT NOT NULL,
-  sector      TEXT NOT NULL,
-  call_number TEXT                          -- supervisor phone for "call" fallback
-);
+| Collection | Holds | Main fields |
+| --- | --- | --- |
+| `healthCenters` | Facilities and the supervisor call-back number | `name`, `district`, `sector`, `callNumber` |
+| `users` | CHWs, supervisors, admins; the document ID is the Firebase Auth UID | `role`, `chwRole`, `fullName`, `phone`, `email`, `healthCenterId`, `village`, `language`, `active`, `createdAt` |
+| `devices` | Registered phones and which build (store or managed) each runs | `userId`, `buildFlavor`, `lastSyncAt`, `revokedAt` |
+| `patients` | Patients, keyed by a phone-generated UUID | `shortId`, `chwId`, `healthCenterId`, `fullName`, `sex`, `birthDate`, `ageEstimate`, `village`, `phone`, `consentAt`, `createdAt`, `updatedAt`, `archivedAt` |
+| `visits` | Visit records, form answers as a map | `shortCode`, `patientId`, `chwId`, `healthCenterId`, `deviceId`, `type`, `answers`, `notes`, `isUrgent`, `dangerSigns`, `followUpOn`, `recordedAt`, `receivedAt`, `source`, `isPartial` |
+| `dangerSigns` | Reference list of sign codes in EN and RW | `visitType`, `labelEn`, `labelRw` |
+| `alerts` | One alert per urgent visit (same ID as the visit) | `visitId`, `chwId`, `healthCenterId`, `channel`, `status`, `createdAt`, `ackedToChwAt` |
+| `alerts/{id}/events` | Status history of each alert (sub-collection) | `actorId`, `fromStatus`, `toStatus`, `note`, `createdAt` |
 
-CREATE TYPE user_role AS ENUM ('chw', 'supervisor', 'admin');
-CREATE TYPE chw_role  AS ENUM ('asm', 'binome');
+Server-only collections (the security rules close them to every app; only the Express server reads and writes them through the Admin SDK): `credentials` (argon2id PIN hash, failed-login count, lock time), `deviceKeys` (the AES key of each device, wrapped with a server key), `resetRequests` (forgot-PIN requests and hashed one-time codes), `smsMessages` (every inbound and outbound SMS, for replay protection and debugging) and `auditLog` (who changed what).
 
-CREATE TABLE users (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  role             user_role NOT NULL,
-  chw_role         chw_role,
-  full_name        TEXT NOT NULL,
-  phone            TEXT UNIQUE NOT NULL,
-  email            TEXT UNIQUE,
-  secret_hash      TEXT NOT NULL,           -- argon2id of PIN or password
-  health_center_id UUID REFERENCES health_centers(id),
-  village          TEXT,
-  language         TEXT NOT NULL DEFAULT 'rw',
-  active           BOOLEAN NOT NULL DEFAULT true,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+**Rules that matter** (see `firestore.rules`):
 
-CREATE TABLE devices (
-  id           TEXT PRIMARY KEY,            -- short ID, e.g. 'D0042', sent in clear in SMS
-  user_id      UUID NOT NULL REFERENCES users(id),
-  sms_key      BYTEA NOT NULL,              -- 32-byte AES key, encrypted at rest
-  sim_phone    TEXT,
-  build_flavor TEXT NOT NULL DEFAULT 'store' CHECK (build_flavor IN ('store','managed')),
-  last_sync_at TIMESTAMPTZ,
-  revoked_at   TIMESTAMPTZ
-);
+- A CHW reads and writes only their own patients and visits; a supervisor reads only the records of their own health centre. The role and `healthCenterId` come from custom claims in the sign-in token, which only the server can set.
+- Only the listed keys are allowed on a patient or visit, and `isUrgent` must equal "`dangerSigns` is not empty".
+- After creation, `chwId`, `healthCenterId`, `shortId` and `createdAt` cannot change.
+- Nothing can be deleted: a patient is archived by setting `archivedAt`.
 
-CREATE TABLE patients (
-  id           UUID PRIMARY KEY,            -- generated on the phone
-  short_id     TEXT UNIQUE NOT NULL,        -- e.g. 'P0412', safe for SMS
-  chw_id       UUID NOT NULL REFERENCES users(id),
-  full_name    TEXT NOT NULL,
-  sex          CHAR(1) CHECK (sex IN ('F','M')),
-  birth_date   DATE,
-  age_estimate SMALLINT,
-  village      TEXT NOT NULL,
-  phone        TEXT,
-  consent_at   TIMESTAMPTZ NOT NULL,
-  created_at   TIMESTAMPTZ NOT NULL,
-  updated_at   TIMESTAMPTZ NOT NULL
-);
-
-CREATE TYPE visit_type AS ENUM ('maternal', 'child', 'malaria', 'nutrition');
-
-CREATE TABLE visits (
-  id           UUID PRIMARY KEY,            -- generated on the phone
-  short_code   TEXT NOT NULL,               -- first 8 hex of id, used in SMS
-  patient_id   UUID NOT NULL REFERENCES patients(id),
-  chw_id       UUID NOT NULL REFERENCES users(id),
-  device_id    TEXT NOT NULL REFERENCES devices(id),
-  type         visit_type NOT NULL,
-  answers      JSONB NOT NULL DEFAULT '{}',
-  notes        TEXT,
-  is_urgent    BOOLEAN NOT NULL DEFAULT false,
-  follow_up_on DATE,
-  recorded_at  TIMESTAMPTZ NOT NULL,        -- phone clock
-  received_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  source       TEXT NOT NULL CHECK (source IN ('sync','sms')),
-  is_partial   BOOLEAN NOT NULL DEFAULT false, -- true until the full record syncs
-  UNIQUE (device_id, short_code)
-);
-
-CREATE TABLE danger_signs (
-  code       CHAR(2) PRIMARY KEY,           -- e.g. 'HB' heavy bleeding
-  visit_type visit_type NOT NULL,
-  label_en   TEXT NOT NULL,
-  label_rw   TEXT NOT NULL
-);
-
-CREATE TABLE visit_danger_signs (
-  visit_id UUID REFERENCES visits(id) ON DELETE CASCADE,
-  code     CHAR(2) REFERENCES danger_signs(code),
-  PRIMARY KEY (visit_id, code)
-);
-
-CREATE TYPE alert_status AS ENUM ('new','reviewed','escalated','follow_up','resolved');
-
-CREATE TABLE alerts (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  visit_id         UUID UNIQUE NOT NULL REFERENCES visits(id),
-  health_center_id UUID NOT NULL REFERENCES health_centers(id),
-  channel          TEXT NOT NULL CHECK (channel IN ('internet','sms')),
-  status           alert_status NOT NULL DEFAULT 'new',
-  acked_to_chw_at  TIMESTAMPTZ,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE alert_events (
-  id          BIGSERIAL PRIMARY KEY,
-  alert_id    UUID NOT NULL REFERENCES alerts(id),
-  actor_id    UUID REFERENCES users(id),
-  from_status alert_status,
-  to_status   alert_status NOT NULL,
-  note        TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE sms_messages (
-  id         BIGSERIAL PRIMARY KEY,
-  direction  TEXT NOT NULL CHECK (direction IN ('in','out')),
-  phone      TEXT NOT NULL,
-  device_id  TEXT REFERENCES devices(id),
-  nonce      BYTEA,                         -- unique per device, blocks replays
-  raw_text   TEXT NOT NULL,
-  status     TEXT NOT NULL,                 -- parsed, rejected, sent, delivered, failed
-  error      TEXT,
-  gateway_id TEXT,
-  visit_id   UUID REFERENCES visits(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (device_id, nonce)
-);
-
-CREATE TABLE audit_log (
-  id         BIGSERIAL PRIMARY KEY,
-  actor_id   UUID REFERENCES users(id),
-  action     TEXT NOT NULL,
-  entity     TEXT NOT NULL,
-  entity_id  TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX ON visits (chw_id, recorded_at DESC);
-CREATE INDEX ON alerts (health_center_id, status, created_at DESC);
-CREATE INDEX ON patients (chw_id, village);
-```
+**Indexes** (`firestore.indexes.json`): alerts by `healthCenterId`, `status` and `createdAt` (the supervisor inbox); alerts by `healthCenterId` and `createdAt`; visits by `chwId` and `recordedAt`; users by `healthCenterId` and `role`.
 
 ## 2. SQLite (phone, drift)
 
@@ -169,7 +43,7 @@ CREATE INDEX ON patients (chw_id, village);
 | sync\_meta | key, value | Last pull timestamp, tokens |
 | danger\_signs | code, visit\_type, label\_en, label\_rw | Shipped with the app, refreshed on sync |
 
-`sync_state` is one of local, queued, synced, failed. `urgent_dispatch.state` is one of sending, sent\_sms, confirmed, unconfirmed.
+`sync_state` is one of local, queued, synced, failed. `urgent_dispatch.state` is one of sending, sent\_sms, confirmed, unconfirmed. The database is encrypted with SQLCipher. The exact tables are in `lib/data/db.dart`.
 
 ## 3. SMS payload
 
@@ -197,22 +71,32 @@ A;7f3c9a21;P0412;M;2610062114;HB,CV;T389;G32
 
 Size: 50 bytes + 28 bytes of nonce and tag = 78 bytes, about 104 Base64 characters, plus a 10-character header, about 114 characters. A longer payload is sent as two parts with a "1/2" header and reassembled before decrypting.
 
-Acknowledgement from the server, plain text: `HB OK 7f3c9a21` (no patient data).
+Acknowledgement from the server, plain text: `HB OK <code> <tag>`, where the tag is the first 12 hex characters of an HMAC-SHA256 over `HB OK <code>` with the device key, so only the server can confirm an alert (no patient data in the message).
 
-## 4. API endpoints
+## 4. Server API (Express on the Firebase Admin SDK)
+
+The phone reads and writes Firestore directly, under the security rules, for patients and visits and for an urgent alert sent over the internet. The Express server handles what an app must not do itself: checking PIN hashes, issuing sign-in tokens, creating accounts, changing case status, and receiving SMS. Email + password and SMS-code sign-in are done by Firebase Authentication directly.
 
 | Method | Path | Who | Purpose |
 | --- | --- | --- | --- |
-| POST | /auth/login | All | Phone + PIN or email + password, returns tokens |
-| POST | /auth/refresh | All | New access token |
-| POST | /devices/register | CHW | Bind device and its build flavour (store or managed), receive device ID and SMS key once |
-| POST | /sync/push | CHW | Upload outbox batch, idempotent by UUID |
-| GET | /sync/pull?since= | CHW | Patients, alert statuses, danger-sign list changed since |
-| POST | /alerts | CHW | Urgent visit over internet |
+| POST | /auth/pin | All | Phone + PIN; returns a Firebase custom token with role and health-centre claims; 5 wrong tries lock the account for 15 minutes |
+| POST | /auth/change | Signed-in user | First sign-in: replace the temporary PIN or password, which clears the must-change claim |
+| POST | /auth/reset/request | All | Ask for a PIN or password reset (an admin must approve) |
+| POST | /auth/reset/verify | All | Check the one-time code (30 minutes, 5 tries) |
+| POST | /auth/reset/complete | All | Set the new PIN or password; other sessions are signed out |
+| POST | /devices/register | CHW | Bind a device and its build flavour (store or managed), receive device ID and SMS key once |
+| POST | /visits/:id/merge-sms | CHW | Attach a full visit to the case created from its SMS |
 | POST | /webhooks/sms | Gateway | Inbound SMS (shared-secret check) |
 | POST | /webhooks/sms/delivery | Gateway | Delivery reports for outbound SMS |
-| GET | /alerts?status= | Supervisor | Alert inbox for own health centre |
+| GET | /alerts?status= | Supervisor | Alert inbox for their own health centre |
 | GET | /alerts/:id | Supervisor | Case detail with visit and events |
-| PATCH | /alerts/:id | Supervisor | Change status, add note |
-| GET | /chws | Supervisor | CHWs with last sync and pending count |
+| PATCH | /alerts/:id | Supervisor | Change status (allowed moves only, inside a transaction) and add a note |
+| GET | /chws, /chws/:id | Supervisor | CHWs with last sync, pending count and visit history |
+| GET | /patients, /patients/:id | Supervisor | Patients of their health centre and a patient's history |
+| GET, POST | /admin/users | Admin | List members; create an account (a temporary PIN or password is texted) |
+| GET, PATCH, DELETE | /admin/users/:id | Admin | Member details; deactivate or reactivate; delete |
+| GET, POST | /admin/health-centers | Admin | List and add health centres |
+| GET | /admin/health-centers/:id | Admin | A centre's details |
+| GET | /admin/reset-requests | Admin | Pending reset requests |
+| POST | /admin/reset-requests/:id/approve | Admin | Approve a reset; the one-time code is texted |
 | GET | /health | Public | Reachability check for the app |
