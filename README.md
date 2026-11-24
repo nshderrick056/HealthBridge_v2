@@ -75,7 +75,7 @@ profile, urgent alert, supervisor inbox and case, CHW and patient history, admin
 | Offline SMS alert and merge on Firebase | code and server tests done; last phone run was on the Postgres version (1 Nov) |
 | Redesign (Outfit, green and lime), history screens, admin Members and centre details, CHW stat cards | done, installed on a phone; the newest screens are covered by tests, not yet by a full phone run |
 | Web dashboard on Firebase sign-in (supervisor and admin) | done, tested by unit tests only |
-| Tests | 129 Flutter (unit, widget, layout at 4 sizes: 320x568, 430x932, landscape, landscape with extra-large text), 48 server (Firebase emulators), 35 dashboard |
+| Tests | 130 Flutter (unit, widget, layout at 4 sizes: 320x568, 430x932, landscape, landscape with extra-large text), 48 server (Firebase emulators), 35 dashboard |
 
 ## Phone tests
 

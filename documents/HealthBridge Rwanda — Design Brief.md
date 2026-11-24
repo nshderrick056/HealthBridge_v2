@@ -1,5 +1,8 @@
 # HealthBridge Rwanda — Design Brief
 
+> **Updated Nov 2026** to match the v3 redesign: the typeface is Outfit; brand green #19695A with lime; dark pill buttons; a floating tab bar with a lime Record button; the Home and Profile screens as built. Sections 6 and 7 are the original review notes and open items, kept for history.
+
+
 Oct 6, 2026 · @GATETE Derrick
 
 Design for a tired CHW, outdoors, at night, with a worried family watching: every screen answers "what do I do next" and "did my data get through" without reading a paragraph. The base is the team's Mobile UI foundation (v1): a calm green system of eight components that every CHW screen is built from (Section 4).
@@ -42,21 +45,21 @@ These eight components come from the Mobile UI foundation in Figma. Every CHW sc
 
 | Component | As designed in the foundation | Usage rules |
 | --- | --- | --- |
-| Header | Small green caps label above a large bold title and a grey subtitle, for example "Patients" and "26 people in your care" | One per screen; the subtitle always carries a live count or state; one line only |
-| Primary button | Full-width, filled deep green, bold white label, leading plus icon | One per screen, directly under the content it acts on or at the bottom (Record new visit, Save, Send urgent alert); on the urgent screen it is the only filled button |
-| Secondary button | Full-width, white with green outline and bold green label | The alternative action (Review details, Back to home); never two equal-weight secondaries side by side |
+| Header | Large bold title with a count or a one-line subtitle, for example "Patients" with the number of patients beside it | One per screen; the subtitle always carries a live count or state; one line only |
+| Primary button | Full-width pill, 56 px high, filled dark ink (#1D2220), bold white label, optional leading icon | One per screen, directly under the content it acts on or at the bottom (Record new visit, Save, Send urgent alert); on the urgent screen it is the only filled button |
+| Secondary button | Full-width pill, 56 px high, white with a grey-green outline and a bold dark label | The alternative action (Review details, Back to home); never two equal-weight secondaries side by side |
 | Input field | Bold label above; rounded field with a leading icon and grey placeholder | The label is always visible, never placeholder-only; errors appear under the field in plain words; numeric fields open the numeric keypad |
 | Status chip | Pill with a dot or icon plus a word: Online (green, Wi-Fi), Offline (grey, crossed circle), Follow-up due (amber), Urgent (red) | The word is mandatory, colour is never the only signal; chip labels and colours come only from the status vocabulary in Section 3; one chip per object |
 | Summary card | Three equal tiles, each with a tinted icon square, a large number and a label: Visited, Due, Urgent | Tapping a tile opens the matching filtered list; the Urgent tile takes its red tint only when the count is above zero |
 | Patient card | Bold name, age and sex, village with a person icon, last-visit day on the right, status chip at top right | The whole card is tappable; shows only what the CHW needs to pick the right person, no phone number or other details |
-| Bottom navigation | Five items: Home, Patients, Record Visit (raised filled circle with a plus), Alerts, Profile; active item in green | On every CHW screen except login and while a visit form is open; Record is always one tap away |
+| Bottom navigation | Five items in a floating dark pill: Home, Patients, Record (raised lime button with a plus), Alerts, Profile; the active item is highlighted | On every CHW screen except login and while a visit form is open; Record is always one tap away |
 
 ## 5. Screen assembly
 
 | Screen | Built from |
 | --- | --- |
 | Login | Header, two input fields, primary button |
-| Home | Header, connection chip, three summary cards, sync card, recent patient cards, bottom navigation |
+| Home | Header, connection pill (opens Sync status), three stat cards, urgent-case card, due-today cards, visited-today list, bottom navigation |
 | Patients | Header with count, search input field, filter chips, patient cards, primary button (Register patient) |
 | Patient profile | Header, patient card, status chip, visit history list, primary button (Record new visit), secondary button (View history) |
 | Record visit | Header with step progress, input fields and checklist rows, primary button (Continue) |
@@ -89,25 +92,25 @@ The foundation covers the visual base. These points differ from the project requ
 
 ## 8. Visual language
 
-- **Colour**: keep the Figma deep green as primary; red only for danger signs and the urgent banner; amber for pending. All text meets WCAG AA contrast (4.5:1).
-- **Type**: one sans family that covers Kinyarwanda (Noto Sans or Inter); body 16 sp minimum, labels 14 sp, headings 20 to 24 sp.
+- **Colour**: brand green #19695A with lime #D4FF89 as the accent and dark ink #1D2220 for text and primary buttons; red only for danger signs and the urgent banner; amber for pending. All text meets WCAG AA contrast (4.5:1).
+- **Type**: one sans family that covers Kinyarwanda (Outfit, bundled in the app and the dashboard); body 16 sp minimum, labels 14 sp, headings 20 to 24 sp.
 - **Touch targets**: 48 dp minimum; primary buttons full width at the bottom, in the thumb zone.
 - **Icons**: always paired with a text label.
-- **Spacing**: 8 dp grid; cards with 16 dp padding.
+- **Spacing**: 8 dp grid; cards with 24 px corners and 16 dp padding.
 
 ## 9. Screen design direction
 
 | Screen | Design direction |
 | --- | --- |
-| Login | Foundation header, input fields (CHW ID or phone number; PIN with numeric keypad) and primary button; language switch at the bottom |
-| Home | Connection chip, three summary cards (Visited, Due, Urgent), sync card, recent patient cards; Record is the raised centre button of the bottom navigation |
+| Login | Foundation header, input fields (phone number and PIN, an SMS code, or email and password, chosen with three chips at the top) and a light button on the green background; a "Forgot PIN or password?" link |
+| Home | Connection pill, three stat cards (Visited today, Due for a visit, Urgent today), an urgent-case card when there is one, due-today cards and a visited-today list; Record is the raised centre button of the bottom navigation |
 | Record visit | Steps with a progress bar: type, form, danger signs, review |
 | Danger signs | Large checkbox list grouped by visit type, red only when ticked |
 | Urgent case | Banner, ticked signs, one button; then the states Sending, Sent by SMS, Received, Not confirmed. Store build: after "No internet", the SMS app opens and a short hint says "Tap Send"; managed build: no hint, it just sends |
 | Patient profile | Status chip, last visit, next follow-up, visit history |
 | Supervisor inbox | Alert list first, channel badge, "Full record pending" tag |
 | Case detail | Signs and vitals at the top, actions fixed at the bottom |
-| Profile | Language, catchment area, a plain "Build: store" or "Build: managed" line, and Logout (blocked while records are unsynced) |
+| Profile | The person's name and role, Sync status, Settings (text size, default visit type, remember my phone number) and Log out |
 
 ## 10. Accessibility
 

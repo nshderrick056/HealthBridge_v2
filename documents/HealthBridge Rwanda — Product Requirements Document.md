@@ -1,5 +1,8 @@
 # HealthBridge Rwanda — Product Requirements Document
 
+> **Updated Nov 2026** to match the built app: sign-in methods, the admin role, supervisor tools in the app, and what is not yet met (Kinyarwanda, APK size). Requirements FR-18 to FR-21 were added; the goals and the problem statement are unchanged.
+
+
 Oct 6, 2026 · @GATETE Derrick
 
 HealthBridge Rwanda lets a Community Health Worker record a visit with no data connection and get an urgent case to the health centre over 2G SMS within minutes, while routine records sync later. It complements cEMR; it does not replace it.
@@ -14,7 +17,7 @@ CEMR moves CHWs from paper to smartphones, but it needs 3G/4G to submit. In vill
 | --- | --- | --- |
 | CHW (ASM or binôme member) | Rural village, Android smartphone, basic literacy, Kinyarwanda first | Record fast, never lose data, know an urgent alert got through |
 | Health centre supervisor / data manager | Health centre, laptop, intermittent internet, DHIS2 user | See urgent cases now, see what each CHW reported, close the loop |
-| System admin | Office | Register CHWs and devices, manage keys |
+| System admin | Office | Create CHW and supervisor accounts, approve forgot-PIN requests, manage members and health centres |
 
 ## 3. Goals and success metrics
 
@@ -30,14 +33,15 @@ CEMR moves CHWs from paper to smartphones, but it needs 3G/4G to submit. In vill
 
 **In scope (MVP)**
 
-1. CHW login (phone number + PIN), works offline after first login.
+1. Sign-in by phone number + PIN, SMS code, or email + password; an admin creates the account and the first sign-in must replace the temporary PIN; the session works offline after first sign-in.
 2. Register and search patients in the CHW's own catchment.
 3. Record a visit: four visit types (maternal, child health, malaria, nutrition), checkbox-first forms.
 4. Danger-sign checklist that flags a visit as urgent; the CHW confirms.
 5. Offline storage and background sync with visible status per record.
 6. SMS fallback for urgent cases when data is unavailable, with delivery acknowledgement: automatic in the managed build, one tap in the store build.
-7. Supervisor web dashboard: urgent alert inbox, case detail, mark reviewed / escalate / request follow-up, CHW list with last-sync time.
-8. English and Kinyarwanda.
+7. Supervisor tools in the app and on the web dashboard: urgent alert inbox, case detail, mark reviewed / escalate / request follow-up, CHW list with last-sync time, and the visit history of each CHW and patient.
+8. English and Kinyarwanda (the current build is English only; the Kinyarwanda translation is still to do).
+9. Admin tools in the app and on the web dashboard: approve reset requests, create accounts, manage members (deactivate or delete) and health centres.
 
 **Out of scope (future)**
 
@@ -50,7 +54,7 @@ CEMR moves CHWs from paper to smartphones, but it needs 3G/4G to submit. In vill
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-01 | CHW logs in with phone + PIN; session cached so the app opens offline | Must |
+| FR-01 | CHW signs in with phone + PIN, an SMS code, or email + password; session cached so the app opens offline | Must |
 | FR-02 | CHW registers a patient with name, sex, date of birth or age, village, phone (optional), consent | Must |
 | FR-03 | CHW searches patients by name or village offline | Must |
 | FR-04 | CHW records a visit of type maternal, child, malaria or nutrition | Must |
@@ -58,7 +62,7 @@ CEMR moves CHWs from paper to smartphones, but it needs 3G/4G to submit. In vill
 | FR-06 | Any ticked danger sign marks the visit urgent and opens the urgent screen | Must |
 | FR-07 | Every save writes locally first, then queues for sync | Must |
 | FR-08 | Sync runs automatically when data returns, with retry and back-off | Must |
-| FR-09 | Urgent visit: try HTTPS first (10 s timeout); on failure, prepare the encoded SMS | Must |
+| FR-09 | Urgent visit: try the internet first (the visit and alert are written to Firestore, 10 s timeout); on failure, prepare the encoded SMS | Must |
 | FR-10 | Server parses inbound SMS, verifies, decrypts, creates the alert | Must |
 | FR-11 | Server sends an acknowledgement SMS; app shows "Received by health centre" | Should |
 | FR-12 | Dashboard lists urgent alerts newest first, with channel (internet / SMS) | Must |
@@ -66,11 +70,15 @@ CEMR moves CHWs from paper to smartphones, but it needs 3G/4G to submit. In vill
 | FR-14 | A full record arriving later merges into the same case (no duplicate) | Must |
 | FR-15 | Dashboard shows each CHW's last sync and pending count | Should |
 | FR-16 | Patient profile shows visit history and next follow-up date | Should |
-| FR-17 | UI available in English and Kinyarwanda | Must |
+| FR-17 | UI available in English and Kinyarwanda | Must (English done; Kinyarwanda still to do) |
+| FR-18 | An admin creates accounts; the server texts a temporary PIN or password that must be replaced at first sign-in | Must |
+| FR-19 | Forgot PIN or password: the user asks, an admin approves, and a one-time code (30 minutes, 5 tries) sets the new one | Must |
+| FR-20 | An admin deactivates or deletes a member; deactivation signs the person out at once; patient and visit records are kept | Should |
+| FR-21 | A supervisor sees each CHW's and each patient's visit history | Should |
 
 ## 6. Non-functional requirements
 
-- Runs on Android 8+ with 2 GB RAM; APK under 30 MB.
+- Runs on Android 8+ with 2 GB RAM; APK under 30 MB (not met: the current managed release build is about 71 MB).
 - Cold start under 3 s; saving a visit under 1 s offline.
 - Personal data encrypted on device and in transit; access by role only.
 - Follows Rwanda Law No. 058/2021 on personal data protection: consent recorded at registration.
